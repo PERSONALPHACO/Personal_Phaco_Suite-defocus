@@ -67,3 +67,6 @@
 - [x] Testes vitest para procedures de IOL
 - [x] Testes vitest para procedures de paciente
 - [x] Testes vitest para procedures de medição
+
+## Bugs
+- [x] Fix: SelectItem com value="" vazio em NewMeasurement.tsx causa crash na página /patients/:id/measurements/new

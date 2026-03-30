@@ -48,7 +48,7 @@ export default function NewMeasurement() {
     new Date().toISOString().split("T")[0]
   );
   const [eye, setEye] = useState("OD");
-  const [patientIolId, setPatientIolId] = useState<string>("");
+  const [patientIolId, setPatientIolId] = useState<string>("none");
   const [notes, setNotes] = useState("");
   const [points, setPoints] = useState<MeasurementPoint[]>(
     DEFAULT_DIOPTERS.map((d) => ({ diopter: d, visualAcuity: "" }))
@@ -113,7 +113,7 @@ export default function NewMeasurement() {
 
     createMeasurement.mutate({
       patientId,
-      patientIolId: patientIolId ? parseInt(patientIolId) : undefined,
+      patientIolId: patientIolId && patientIolId !== "none" ? parseInt(patientIolId) : undefined,
       measurementDate,
       eye: eye as any,
       notes: notes || undefined,
@@ -197,7 +197,7 @@ export default function NewMeasurement() {
                       <SelectValue placeholder="Selecione a IOL implantada" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sem IOL específica</SelectItem>
+                      <SelectItem value="none">Sem IOL específica</SelectItem>
                       {patientIols.map((piol) => (
                         <SelectItem key={piol.id} value={piol.id.toString()}>
                           {piol.eye} — {piol.manufacturerName} {piol.iolModel}
