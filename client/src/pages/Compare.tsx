@@ -21,7 +21,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { Activity, Eye, GitCompare, Info, Plus, Trash2, X } from "lucide-react";
+import { Activity, Download, Eye, GitCompare, Info, Plus, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 
@@ -135,13 +135,22 @@ export default function Compare() {
     <DefocusLayout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Comparação de IOLs</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Compare curvas de defoque de múltiplas lentes intraoculares
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => toast.info("Exportação de gráfico em breve", { description: "Esta funcionalidade estará disponível em uma próxima versão." })}
+            className="shrink-0"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Exportar Gráfico
+          </Button>
         </div>
 
         {/* Demo notice */}

@@ -51,7 +51,7 @@
 - [x] Página de comparação com seleção de múltiplos IOLs
 - [x] Curvas sobrepostas com cores distintas
 - [x] Legenda clara com nome do IOL/fabricante
-- [ ] Exportar/imprimir gráfico (placeholder - feature futura)
+- [x] Exportar/imprimir gráfico (placeholder - feature futura, toast informativo implementado)
 
 ## Alvo Refrativo
 - [x] Interface de seleção de alvo refrativo
