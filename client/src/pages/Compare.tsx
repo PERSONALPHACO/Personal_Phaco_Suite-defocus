@@ -1,0 +1,453 @@
+import DefocusLayout from "@/components/DefocusLayout";
+import { trpc } from "@/lib/trpc";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
+import { Activity, Eye, GitCompare, Info, Plus, Trash2, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { toast } from "sonner";
+
+const CHART_COLORS = [
+  "#2563eb", // Medical Blue
+  "#059669", // Emerald
+  "#d97706", // Amber
+  "#7c3aed", // Violet
+  "#dc2626", // Red
+  "#0891b2", // Cyan
+  "#be185d", // Pink
+  "#65a30d", // Lime
+];
+
+const IOL_TYPE_LABELS: Record<string, string> = {
+  monofocal: "Monofocal",
+  bifocal: "Bifocal",
+  trifocal: "Trifocal",
+  edof: "EDOF",
+  toric: "Tórica",
+};
+
+const IOL_TYPE_COLORS: Record<string, string> = {
+  monofocal: "bg-slate-100 text-slate-700 border-slate-200",
+  bifocal: "bg-blue-100 text-blue-700 border-blue-200",
+  trifocal: "bg-primary/10 text-primary border-primary/20",
+  edof: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  toric: "bg-amber-100 text-amber-700 border-amber-200",
+};
+
+// Typical defocus curve profiles for demo/reference
+const REFERENCE_CURVES: Record<string, Record<string, number>> = {
+  trifocal: { "-5": 0.05, "-4.5": 0.08, "-4": 0.12, "-3.5": 0.18, "-3": 0.35, "-2.5": 0.55, "-2": 0.85, "-1.5": 0.75, "-1": 0.60, "-0.5": 0.85, "0": 1.0, "0.5": 0.75, "1": 0.40 },
+  edof: { "-5": 0.05, "-4.5": 0.07, "-4": 0.10, "-3.5": 0.15, "-3": 0.28, "-2.5": 0.50, "-2": 0.70, "-1.5": 0.80, "-1": 0.85, "-0.5": 0.92, "0": 1.0, "0.5": 0.80, "1": 0.55 },
+  monofocal: { "-5": 0.04, "-4.5": 0.05, "-4": 0.07, "-3.5": 0.10, "-3": 0.15, "-2.5": 0.22, "-2": 0.35, "-1.5": 0.50, "-1": 0.70, "-0.5": 0.90, "0": 1.0, "0.5": 0.85, "1": 0.60 },
+};
+
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border rounded-xl shadow-xl p-3 text-xs min-w-[160px]">
+      <p className="font-bold text-foreground mb-2 pb-1.5 border-b">
+        {Number(label) > 0 ? "+" : ""}{label} D
+      </p>
+      {payload.map((entry: any) => (
+        <div key={entry.dataKey} className="flex items-center justify-between gap-3 py-0.5">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: entry.color }} />
+            <span className="text-muted-foreground truncate max-w-[100px]">{entry.name}</span>
+          </div>
+          <span className="font-bold text-foreground">{Number(entry.value).toFixed(2)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function Compare() {
+  const [selectedIolIds, setSelectedIolIds] = useState<number[]>([]);
+  const [addingId, setAddingId] = useState<string>("");
+  const [showReference, setShowReference] = useState(false);
+
+  const { data: allIols = [] } = trpc.iols.list.useQuery();
+  const { data: manufacturers = [] } = trpc.manufacturers.list.useQuery();
+
+  // Group IOLs by manufacturer
+  const iolsByManufacturer = useMemo(() => {
+    const groups: Record<string, typeof allIols> = {};
+    allIols.forEach((iol) => {
+      const mfr = iol.manufacturerName || "Outros";
+      if (!groups[mfr]) groups[mfr] = [];
+      groups[mfr].push(iol);
+    });
+    return groups;
+  }, [allIols]);
+
+  const addIOL = () => {
+    if (!addingId) return;
+    const id = parseInt(addingId);
+    if (selectedIolIds.includes(id)) {
+      toast.error("Esta IOL já está na comparação");
+      return;
+    }
+    if (selectedIolIds.length >= 8) {
+      toast.error("Máximo de 8 IOLs na comparação");
+      return;
+    }
+    setSelectedIolIds((prev) => [...prev, id]);
+    setAddingId("");
+  };
+
+  const removeIOL = (id: number) => {
+    setSelectedIolIds((prev) => prev.filter((x) => x !== id));
+  };
+
+  const selectedIols = allIols.filter((iol) => selectedIolIds.includes(iol.id));
+
+  // Build chart data with reference curves for selected IOLs
+  const diopters = [-5, -4.5, -4, -3.5, -3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1];
+
+  const chartData = diopters.map((d) => {
+    const row: Record<string, any> = { diopter: d };
+    selectedIols.forEach((iol) => {
+      const refCurve = REFERENCE_CURVES[iol.type] || REFERENCE_CURVES["monofocal"];
+      row[`iol_${iol.id}`] = refCurve[d.toString()] ?? null;
+    });
+    return row;
+  });
+
+  return (
+    <DefocusLayout>
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Comparação de IOLs</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Compare curvas de defoque de múltiplas lentes intraoculares
+            </p>
+          </div>
+        </div>
+
+        {/* Demo notice */}
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
+          <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Curvas de Referência</p>
+            <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+              As curvas exibidas são perfis de referência baseados no tipo de IOL (trifocal, EDOF, monofocal). 
+              Para curvas baseadas em dados reais de seus pacientes, registre medições na seção de Pacientes.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Left: IOL Selector */}
+          <div className="space-y-4">
+            <Card className="border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <GitCompare className="w-4 h-4 text-primary" />
+                  IOLs Selecionadas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Add IOL */}
+                <div className="space-y-2">
+                  <Select value={addingId} onValueChange={setAddingId}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue placeholder="Selecionar IOL..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(iolsByManufacturer).map(([mfr, iols]) => (
+                        <div key={mfr}>
+                          <div className="px-2 py-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wide">
+                            {mfr}
+                          </div>
+                          {iols.map((iol) => (
+                            <SelectItem
+                              key={iol.id}
+                              value={iol.id.toString()}
+                              disabled={selectedIolIds.includes(iol.id)}
+                            >
+                              {iol.model}
+                              <span className="ml-1 text-muted-foreground text-xs">
+                                ({IOL_TYPE_LABELS[iol.type] || iol.type})
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={addIOL}
+                    disabled={!addingId}
+                    size="sm"
+                    className="w-full bg-primary text-primary-foreground"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1.5" />
+                    Adicionar à Comparação
+                  </Button>
+                </div>
+
+                {/* Selected IOLs */}
+                {selectedIols.length === 0 ? (
+                  <div className="text-center py-6">
+                    <Eye className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      Selecione IOLs para comparar
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedIols.map((iol, idx) => (
+                      <div
+                        key={iol.id}
+                        className="flex items-center gap-2 p-2.5 rounded-lg border bg-card"
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-foreground truncate">
+                            {iol.model}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {iol.manufacturerName}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => removeIOL(iol.id)}
+                          className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {selectedIols.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs text-muted-foreground"
+                    onClick={() => setSelectedIolIds([])}
+                  >
+                    Limpar seleção
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Quick presets */}
+            <Card className="border">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Comparações Rápidas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {[
+                  {
+                    label: "Trifocais Alcon",
+                    ids: allIols.filter((i) => i.type === "trifocal" && i.manufacturerName === "Alcon").map((i) => i.id),
+                  },
+                  {
+                    label: "Todos os EDOFs",
+                    ids: allIols.filter((i) => i.type === "edof").slice(0, 4).map((i) => i.id),
+                  },
+                  {
+                    label: "Trifocal vs EDOF",
+                    ids: [
+                      allIols.find((i) => i.type === "trifocal")?.id,
+                      allIols.find((i) => i.type === "edof")?.id,
+                    ].filter(Boolean) as number[],
+                  },
+                ]
+                  .filter((p) => p.ids.length > 0)
+                  .map((preset) => (
+                    <Button
+                      key={preset.label}
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs justify-start"
+                      onClick={() => setSelectedIolIds(preset.ids)}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right: Chart + Details */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Chart */}
+            <Card className="border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-primary" />
+                  Curvas de Defoque Comparativas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedIols.length === 0 ? (
+                  <div className="h-80 flex flex-col items-center justify-center text-center">
+                    <GitCompare className="w-14 h-14 text-muted-foreground mb-4" />
+                    <p className="font-medium text-foreground">Nenhuma IOL selecionada</p>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                      Selecione IOLs no painel à esquerda para comparar suas curvas de defoque
+                    </p>
+                  </div>
+                ) : (
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 25 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
+                        <XAxis
+                          dataKey="diopter"
+                          type="number"
+                          domain={[-5, 1.5]}
+                          tickCount={9}
+                          tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
+                          label={{
+                            value: "Defoque (Dioptrias)",
+                            position: "insideBottom",
+                            offset: -12,
+                            fontSize: 12,
+                            fill: "oklch(0.50 0.03 240)",
+                          }}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <YAxis
+                          domain={[0, 1.1]}
+                          tickCount={7}
+                          tickFormatter={(v) => v.toFixed(1)}
+                          label={{
+                            value: "Acuidade Visual (decimal)",
+                            angle: -90,
+                            position: "insideLeft",
+                            offset: 15,
+                            fontSize: 12,
+                            fill: "oklch(0.50 0.03 240)",
+                          }}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend
+                          wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                          formatter={(value) => (
+                            <span className="text-foreground">{value}</span>
+                          )}
+                        />
+                        <ReferenceLine
+                          x={0}
+                          stroke="oklch(0.50 0.20 240)"
+                          strokeDasharray="6 3"
+                          strokeWidth={1.5}
+                          label={{ value: "Emmetropia", position: "top", fontSize: 10, fill: "oklch(0.50 0.20 240)" }}
+                        />
+                        <ReferenceLine
+                          y={0.5}
+                          stroke="oklch(0.55 0.22 25)"
+                          strokeDasharray="4 4"
+                          strokeWidth={1}
+                          label={{ value: "20/40", position: "right", fontSize: 9, fill: "oklch(0.55 0.22 25)" }}
+                        />
+                        {selectedIols.map((iol, idx) => (
+                          <Line
+                            key={iol.id}
+                            type="monotone"
+                            dataKey={`iol_${iol.id}`}
+                            name={`${iol.model} (${IOL_TYPE_LABELS[iol.type] || iol.type})`}
+                            stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                            strokeWidth={2.5}
+                            dot={{ r: 4, strokeWidth: 2, fill: "white" }}
+                            activeDot={{ r: 6 }}
+                            connectNulls={false}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* IOL Details Table */}
+            {selectedIols.length > 0 && (
+              <Card className="border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-foreground">
+                    Especificações Técnicas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/30">
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">IOL</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Fabricante</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Tipo</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Design</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Material</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Poder</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedIols.map((iol, idx) => (
+                          <tr key={iol.id} className="border-b hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                                  style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }}
+                                />
+                                <span className="font-semibold text-foreground">{iol.model}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{iol.manufacturerName}</td>
+                            <td className="px-4 py-3">
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${IOL_TYPE_COLORS[iol.type] || "bg-muted text-muted-foreground"}`}
+                              >
+                                {IOL_TYPE_LABELS[iol.type] || iol.type}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{iol.opticDesign || "—"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{iol.material || "—"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{iol.powerRange || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>
+    </DefocusLayout>
+  );
+}

@@ -1,0 +1,665 @@
+import DefocusLayout from "@/components/DefocusLayout";
+import { trpc } from "@/lib/trpc";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Activity,
+  ArrowLeft,
+  Calendar,
+  Eye,
+  Plus,
+  Shield,
+  Trash2,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { useForm } from "react-hook-form";
+import { useLocation, useParams } from "wouter";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
+
+const CHART_COLORS = [
+  "#2563eb", // blue
+  "#059669", // emerald
+  "#d97706", // amber
+  "#7c3aed", // violet
+  "#dc2626", // red
+  "#0891b2", // cyan
+];
+
+const EYE_LABELS: Record<string, string> = { OD: "OD (Direito)", OS: "OS (Esquerdo)", OU: "Ambos" };
+const IOL_TYPE_LABELS: Record<string, string> = {
+  monofocal: "Monofocal", bifocal: "Bifocal", trifocal: "Trifocal", edof: "EDOF", toric: "Tórica",
+};
+
+type PatientIOLFormData = {
+  iolId: string;
+  eye: string;
+  surgeryDate: string;
+  refractiveTarget: string;
+  notes: string;
+};
+
+// Custom tooltip for defocus chart
+function DefocusTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border rounded-lg shadow-lg p-3 text-xs">
+      <p className="font-semibold text-foreground mb-1.5">{label} D</p>
+      {payload.map((entry: any) => (
+        <div key={entry.dataKey} className="flex items-center gap-2 py-0.5">
+          <div className="w-2.5 h-2.5 rounded-full" style={{ background: entry.color }} />
+          <span className="text-muted-foreground">{entry.name}:</span>
+          <span className="font-semibold text-foreground">{Number(entry.value).toFixed(2)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function PatientDetail() {
+  const params = useParams<{ id: string }>();
+  const patientId = parseInt(params.id || "0");
+  const [, setLocation] = useLocation();
+  const [iolDialogOpen, setIolDialogOpen] = useState(false);
+
+  const { data: patient, isLoading } = trpc.patients.byId.useQuery({ id: patientId });
+  const { data: patientIols = [], refetch: refetchIols } = trpc.patientIols.list.useQuery({ patientId });
+  const { data: measurements = [], refetch: refetchMeasurements } = trpc.measurements.byPatient.useQuery({ patientId });
+  const { data: allIols = [] } = trpc.iols.list.useQuery();
+
+  const createPatientIOL = trpc.patientIols.create.useMutation({
+    onSuccess: () => {
+      toast.success("IOL associada com sucesso!");
+      setIolDialogOpen(false);
+      iolForm.reset();
+      refetchIols();
+    },
+    onError: (err) => toast.error("Erro: " + err.message),
+  });
+
+  const deletePatientIOL = trpc.patientIols.delete.useMutation({
+    onSuccess: () => { toast.success("IOL removida"); refetchIols(); },
+    onError: (err) => toast.error("Erro: " + err.message),
+  });
+
+  const deleteMeasurement = trpc.measurements.delete.useMutation({
+    onSuccess: () => { toast.success("Medição removida"); refetchMeasurements(); },
+    onError: (err) => toast.error("Erro: " + err.message),
+  });
+
+  const iolForm = useForm<PatientIOLFormData>({ defaultValues: { eye: "OD" } });
+
+  const onSubmitIOL = (data: PatientIOLFormData) => {
+    createPatientIOL.mutate({
+      patientId,
+      iolId: parseInt(data.iolId),
+      eye: data.eye as any,
+      surgeryDate: data.surgeryDate || undefined,
+      refractiveTarget: data.refractiveTarget ? parseFloat(data.refractiveTarget) : undefined,
+      notes: data.notes || undefined,
+    });
+  };
+
+  // Build chart data from measurements
+  const [selectedMeasurements, setSelectedMeasurements] = useState<number[]>([]);
+
+  const { data: chartPoints } = trpc.measurements.points.useQuery(
+    { measurementId: selectedMeasurements[0] ?? 0 },
+    { enabled: selectedMeasurements.length > 0 }
+  );
+
+  // Build multi-series chart data
+  const buildChartData = () => {
+    const diopterRange = [-5, -4.5, -4, -3.5, -3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3];
+    return diopterRange.map((d) => ({ diopter: d }));
+  };
+
+  if (isLoading) {
+    return (
+      <DefocusLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        </div>
+      </DefocusLayout>
+    );
+  }
+
+  if (!patient) {
+    return (
+      <DefocusLayout>
+        <div className="p-6 text-center">
+          <p className="text-muted-foreground">Paciente não encontrado</p>
+          <Button className="mt-4" onClick={() => setLocation("/patients")}>
+            Voltar para Pacientes
+          </Button>
+        </div>
+      </DefocusLayout>
+    );
+  }
+
+  return (
+    <DefocusLayout>
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-start gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLocation("/patients")}
+            className="shrink-0 mt-1"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Voltar
+          </Button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center shrink-0">
+                <span className="text-lg font-bold text-primary">
+                  {patient.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">{patient.name}</h1>
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  {patient.birthDate && (
+                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {format(new Date(patient.birthDate), "dd/MM/yyyy")}
+                    </span>
+                  )}
+                  {patient.lgpdConsent && (
+                    <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-200 bg-emerald-50">
+                      <Shield className="w-2.5 h-2.5 mr-1" />
+                      LGPD Consentido
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <Button
+            onClick={() => setLocation(`/patients/${patientId}/measurements/new`)}
+            className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold shadow-sm shrink-0"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Medição
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left: Patient Info + IOLs */}
+          <div className="space-y-4">
+            {/* Patient Info */}
+            <Card className="border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground">
+                  Dados do Paciente
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2.5">
+                {[
+                  { label: "CPF", value: patient.cpf },
+                  { label: "Telefone", value: patient.phone },
+                  { label: "E-mail", value: patient.email },
+                  { label: "Notas", value: patient.notes },
+                ]
+                  .filter((f) => f.value)
+                  .map((field) => (
+                    <div key={field.label}>
+                      <p className="text-xs text-muted-foreground">{field.label}</p>
+                      <p className="text-sm text-foreground font-medium">{field.value}</p>
+                    </div>
+                  ))}
+                <div>
+                  <p className="text-xs text-muted-foreground">Cadastrado em</p>
+                  <p className="text-sm text-foreground font-medium">
+                    {format(new Date(patient.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* IOLs */}
+            <Card className="border">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground">
+                  IOLs Implantadas
+                </CardTitle>
+                <Dialog open={iolDialogOpen} onOpenChange={setIolDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-primary">
+                      <Plus className="w-3 h-3 mr-1" />
+                      Adicionar
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Associar IOL ao Paciente</DialogTitle>
+                      <DialogDescription>
+                        Registre uma IOL implantada neste paciente
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={iolForm.handleSubmit(onSubmitIOL)} className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label>IOL *</Label>
+                        <Select onValueChange={(v) => iolForm.setValue("iolId", v)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a IOL" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allIols.map((iol) => (
+                              <SelectItem key={iol.id} value={iol.id.toString()}>
+                                {iol.manufacturerName} — {iol.model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label>Olho *</Label>
+                          <Select defaultValue="OD" onValueChange={(v) => iolForm.setValue("eye", v)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="OD">OD (Direito)</SelectItem>
+                              <SelectItem value="OS">OS (Esquerdo)</SelectItem>
+                              <SelectItem value="OU">Ambos</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Data da Cirurgia</Label>
+                          <Input type="date" {...iolForm.register("surgeryDate")} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label>Alvo Refrativo (D)</Label>
+                        <Input
+                          {...iolForm.register("refractiveTarget")}
+                          type="number"
+                          step="0.25"
+                          min="-5"
+                          max="5"
+                          placeholder="Ex: -0.25"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label>Notas</Label>
+                        <Input {...iolForm.register("notes")} placeholder="Observações..." />
+                      </div>
+
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIolDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button type="submit" disabled={createPatientIOL.isPending} className="bg-primary text-primary-foreground">
+                          {createPatientIOL.isPending ? "Salvando..." : "Associar IOL"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {patientIols.length === 0 ? (
+                  <div className="text-center py-4">
+                    <Eye className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">Nenhuma IOL associada</p>
+                  </div>
+                ) : (
+                  patientIols.map((piol) => (
+                    <div key={piol.id} className="flex items-start justify-between p-3 rounded-lg bg-muted/30 border">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs font-bold text-primary border-primary/30">
+                            {piol.eye}
+                          </Badge>
+                          <span className="text-xs font-semibold text-foreground truncate">
+                            {piol.iolModel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{piol.manufacturerName}</p>
+                        {piol.surgeryDate && (
+                          <p className="text-xs text-muted-foreground">
+                            Cirurgia: {format(new Date(piol.surgeryDate), "dd/MM/yyyy")}
+                          </p>
+                        )}
+                        {piol.refractiveTarget && (
+                          <p className="text-xs text-muted-foreground">
+                            Alvo: {piol.refractiveTarget} D
+                          </p>
+                        )}
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remover IOL?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deletePatientIOL.mutate({ id: piol.id })}
+                              className="bg-destructive text-destructive-foreground"
+                            >
+                              Remover
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right: Measurements + Chart */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Defocus Chart */}
+            <Card className="border">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary" />
+                    Curva de Defoque
+                  </CardTitle>
+                  {measurements.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Selecione medições abaixo para visualizar
+                    </p>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {measurements.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-48 text-center">
+                    <Activity className="w-10 h-10 text-muted-foreground mb-3" />
+                    <p className="text-sm font-medium text-foreground">Nenhuma medição registrada</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Adicione medições para visualizar a curva de defoque
+                    </p>
+                    <Button
+                      size="sm"
+                      className="mt-4 bg-primary text-primary-foreground"
+                      onClick={() => setLocation(`/patients/${patientId}/measurements/new`)}
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1.5" />
+                      Registrar Medição
+                    </Button>
+                  </div>
+                ) : (
+                  <DefocusChart patientId={patientId} measurements={measurements} />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Measurements List */}
+            <Card className="border">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground">
+                  Medições Registradas
+                </CardTitle>
+                <Button
+                  size="sm"
+                  onClick={() => setLocation(`/patients/${patientId}/measurements/new`)}
+                  className="h-7 text-xs bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Nova Medição
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                {measurements.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-muted-foreground">Nenhuma medição registrada</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {measurements.map((m, idx) => (
+                      <div key={m.id} className="flex items-center justify-between px-6 py-3 hover:bg-muted/20">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }}
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-foreground">
+                                {format(new Date(m.measurementDate), "dd/MM/yyyy")}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {EYE_LABELS[m.eye] || m.eye}
+                              </Badge>
+                            </div>
+                            {m.iolModel && (
+                              <p className="text-xs text-muted-foreground">
+                                {m.manufacturerName} — {m.iolModel}
+                              </p>
+                            )}
+                            {m.notes && (
+                              <p className="text-xs text-muted-foreground italic">{m.notes}</p>
+                            )}
+                          </div>
+                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir medição?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Todos os pontos desta medição serão excluídos permanentemente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteMeasurement.mutate({ id: m.id })}
+                                className="bg-destructive text-destructive-foreground"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </DefocusLayout>
+  );
+}
+
+// ─── Defocus Chart Component ─────────────────────────────────────────────────
+
+function DefocusChart({ patientId, measurements }: { patientId: number; measurements: any[] }) {
+  const [selectedIds, setSelectedIds] = useState<number[]>(
+    measurements.slice(0, 3).map((m) => m.id)
+  );
+
+  const toggleMeasurement = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  // Fetch points for each selected measurement
+  const pointsQueries = selectedIds.map((id) => ({
+    id,
+    query: trpc.measurements.points.useQuery({ measurementId: id }),
+  }));
+
+  // Build unified chart data
+  const allDiopterValues = new Set<number>();
+  const seriesData: Record<number, Record<number, number>> = {};
+
+  pointsQueries.forEach(({ id, query }) => {
+    if (query.data) {
+      seriesData[id] = {};
+      query.data.forEach((pt) => {
+        const d = parseFloat(pt.diopter as any);
+        const va = parseFloat(pt.visualAcuity as any);
+        allDiopterValues.add(d);
+        seriesData[id][d] = va;
+      });
+    }
+  });
+
+  const sortedDiopters = Array.from(allDiopterValues).sort((a, b) => a - b);
+
+  const chartData = sortedDiopters.map((d) => {
+    const row: Record<string, any> = { diopter: d };
+    selectedIds.forEach((id) => {
+      if (seriesData[id]) {
+        row[`m_${id}`] = seriesData[id][d] ?? null;
+      }
+    });
+    return row;
+  });
+
+  const getMeasurementLabel = (id: number) => {
+    const m = measurements.find((x) => x.id === id);
+    if (!m) return `Medição ${id}`;
+    return `${format(new Date(m.measurementDate), "dd/MM/yy")} ${m.eye}${m.iolModel ? ` · ${m.iolModel}` : ""}`;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Measurement selector */}
+      <div className="flex flex-wrap gap-2">
+        {measurements.map((m, idx) => {
+          const isSelected = selectedIds.includes(m.id);
+          const color = CHART_COLORS[idx % CHART_COLORS.length];
+          return (
+            <button
+              key={m.id}
+              onClick={() => toggleMeasurement(m.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                isSelected
+                  ? "border-transparent text-white shadow-sm"
+                  : "border-border text-muted-foreground bg-background hover:bg-muted"
+              }`}
+              style={isSelected ? { background: color } : {}}
+            >
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: isSelected ? "white" : color }}
+              />
+              {format(new Date(m.measurementDate), "dd/MM/yy")} · {m.eye}
+              {m.iolModel && ` · ${m.iolModel}`}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Chart */}
+      {selectedIds.length > 0 && chartData.length > 0 ? (
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
+              <XAxis
+                dataKey="diopter"
+                type="number"
+                domain={[-5, 3]}
+                tickCount={9}
+                tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
+                label={{ value: "Defoque (D)", position: "insideBottom", offset: -2, fontSize: 11 }}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis
+                domain={[0, 1.0]}
+                tickCount={6}
+                tickFormatter={(v) => v.toFixed(1)}
+                label={{ value: "Acuidade Visual", angle: -90, position: "insideLeft", offset: 10, fontSize: 11 }}
+                tick={{ fontSize: 11 }}
+              />
+              <Tooltip content={<DefocusTooltip />} />
+              <ReferenceLine x={0} stroke="oklch(0.50 0.20 240)" strokeDasharray="4 2" strokeWidth={1.5} />
+              {selectedIds.map((id, idx) => (
+                <Line
+                  key={id}
+                  type="monotone"
+                  dataKey={`m_${id}`}
+                  name={getMeasurementLabel(id)}
+                  stroke={CHART_COLORS[measurements.findIndex((m) => m.id === id) % CHART_COLORS.length]}
+                  strokeWidth={2.5}
+                  dot={{ r: 4, strokeWidth: 2 }}
+                  activeDot={{ r: 6 }}
+                  connectNulls={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+          Selecione ao menos uma medição para visualizar o gráfico
+        </div>
+      )}
+    </div>
+  );
+}
