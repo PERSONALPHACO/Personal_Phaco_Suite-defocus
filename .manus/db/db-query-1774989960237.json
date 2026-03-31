@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO iols (manufacturerId, model, type, aConstant) VALUES\n(2, 'MA60 (Esférica)', 'monofocal', 118.4),\n(2, 'AcrySof IQ (Asférica WF)', 'monofocal', 118.7),\n(2, 'PanOptix / PanOptix Tórica', 'trifocal', 119.1),\n(2, 'Vivity / Vivity Tórica', 'edof', 119.1),\n(3, 'AR40E', 'monofocal', 119.0),\n(3, 'Sensar One', 'monofocal', 119.0),\n(3, 'Tecnis One (Asférica Preload)', 'monofocal', 119.3),\n(3, 'Tecnis Tórica', 'toric', 119.3),\n(3, 'Tecnis Bifocal / Bifocal Tórica', 'bifocal', 119.3),\n(3, 'Tecnis Symfony / Symfony Tórica', 'edof', 119.3),\n(3, 'Tecnis Synergy', 'trifocal', 119.3),\n(3, 'Tecnis Eyhance (Mono-plus) / Tórica', 'monofocal', 119.3),\n(3, 'Tecnis PureSee', 'edof', 119.3);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2TfTURkauT7WU37.root --database n7THbuCkaLecDawSNhBVgp --execute INSERT INTO iols (manufacturerId, model, type, aConstant) VALUES\n(2, 'MA60 (Esférica)', 'monofocal', 118.4),\n(2, 'AcrySof IQ (Asférica WF)', 'monofocal', 118.7),\n(2, 'PanOptix / PanOptix Tórica', 'trifocal', 119.1),\n(2, 'Vivity / Vivity Tórica', 'edof', 119.1),\n(3, 'AR40E', 'monofocal', 119.0),\n(3, 'Sensar One', 'monofocal', 119.0),\n(3, 'Tecnis One (Asférica Preload)', 'monofocal', 119.3),\n(3, 'Tecnis Tórica', 'toric', 119.3),\n(3, 'Tecnis Bifocal / Bifocal Tórica', 'bifocal', 119.3),\n(3, 'Tecnis Symfony / Symfony Tórica', 'edof', 119.3),\n(3, 'Tecnis Synergy', 'trifocal', 119.3),\n(3, 'Tecnis Eyhance (Mono-plus) / Tórica', 'monofocal', 119.3),\n(3, 'Tecnis PureSee', 'edof', 119.3);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 65
+}

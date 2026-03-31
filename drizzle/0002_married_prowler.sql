@@ -1,0 +1,1 @@
+ALTER TABLE `iols` ADD `aConstant` decimal(5,1);

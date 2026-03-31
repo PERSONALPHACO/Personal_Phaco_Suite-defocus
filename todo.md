@@ -70,3 +70,11 @@
 
 ## Bugs
 - [x] Fix: SelectItem com value="" vazio em NewMeasurement.tsx causa crash na página /patients/:id/measurements/new
+
+## Atualização de IOLs (Dataset Expandido)
+- [x] Adicionar coluna `aConstant` (decimal) e `isActive` na tabela `iols`
+- [x] Limpar dados seed antigos e repopular com lista completa (12 fabricantes, 62 IOLs)
+- [x] Dropdown em cascata: fabricante → IOL em PatientDetail (associar IOL ao paciente)
+- [x] Dropdown em cascata: fabricante → IOL em NewMeasurement (selecionar IOL da medição)
+- [x] Dropdown em cascata: fabricante → IOL na página Compare
+- [x] Exibir constante A na ficha da IOL e na comparação

@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO manufacturers (name, country) VALUES\n('Zeiss', 'Alemanha'),\n('Alcon', 'Estados Unidos'),\n('Johnson & Johnson Vision', 'Estados Unidos'),\n('Hoya', 'Japão'),\n('Rayner', 'Reino Unido'),\n('Bausch & Lomb', 'Estados Unidos'),\n('Hanita Lenses', 'Israel'),\n('Teleon Surgical', 'Alemanha'),\n('PhysIOL', 'Bélgica'),\n('Medicontour (Vertek)', 'Brasil'),\n('Biotech', 'França'),\n('Leedsay', 'China');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2TfTURkauT7WU37.root --database n7THbuCkaLecDawSNhBVgp --execute INSERT INTO manufacturers (name, country) VALUES\n('Zeiss', 'Alemanha'),\n('Alcon', 'Estados Unidos'),\n('Johnson & Johnson Vision', 'Estados Unidos'),\n('Hoya', 'Japão'),\n('Rayner', 'Reino Unido'),\n('Bausch & Lomb', 'Estados Unidos'),\n('Hanita Lenses', 'Israel'),\n('Teleon Surgical', 'Alemanha'),\n('PhysIOL', 'Bélgica'),\n('Medicontour (Vertek)', 'Brasil'),\n('Biotech', 'França'),\n('Leedsay', 'China');",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 62
+}

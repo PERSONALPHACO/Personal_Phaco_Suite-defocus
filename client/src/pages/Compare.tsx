@@ -22,8 +22,9 @@ import {
   ReferenceLine,
 } from "recharts";
 import { Activity, Download, Eye, GitCompare, Info, Plus, X } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
+import IOLCascadeSelect from "@/components/IOLCascadeSelect";
 
 const CHART_COLORS = [
   "#2563eb", // Medical Blue
@@ -81,27 +82,15 @@ function CustomTooltip({ active, payload, label }: any) {
 
 export default function Compare() {
   const [selectedIolIds, setSelectedIolIds] = useState<number[]>([]);
-  const [addingId, setAddingId] = useState<string>("");
+  const [addingId, setAddingId] = useState<number | undefined>(undefined);
   const [showReference, setShowReference] = useState(false);
 
   const { data: allIols = [] } = trpc.iols.list.useQuery();
-  const { data: manufacturers = [] } = trpc.manufacturers.list.useQuery();
 
-  // Group IOLs by manufacturer
-  const iolsByManufacturer = useMemo(() => {
-    const groups: Record<string, typeof allIols> = {};
-    allIols.forEach((iol) => {
-      const mfr = iol.manufacturerName || "Outros";
-      if (!groups[mfr]) groups[mfr] = [];
-      groups[mfr].push(iol);
-    });
-    return groups;
-  }, [allIols]);
 
   const addIOL = () => {
     if (!addingId) return;
-    const id = parseInt(addingId);
-    if (selectedIolIds.includes(id)) {
+    if (selectedIolIds.includes(addingId)) {
       toast.error("Esta IOL já está na comparação");
       return;
     }
@@ -109,8 +98,8 @@ export default function Compare() {
       toast.error("Máximo de 8 IOLs na comparação");
       return;
     }
-    setSelectedIolIds((prev) => [...prev, id]);
-    setAddingId("");
+    setSelectedIolIds((prev) => [...prev, addingId]);
+    setAddingId(undefined);
   };
 
   const removeIOL = (id: number) => {
@@ -178,32 +167,11 @@ export default function Compare() {
               <CardContent className="space-y-3">
                 {/* Add IOL */}
                 <div className="space-y-2">
-                  <Select value={addingId} onValueChange={setAddingId}>
-                    <SelectTrigger className="text-sm">
-                      <SelectValue placeholder="Selecionar IOL..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(iolsByManufacturer).map(([mfr, iols]) => (
-                        <div key={mfr}>
-                          <div className="px-2 py-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wide">
-                            {mfr}
-                          </div>
-                          {iols.map((iol) => (
-                            <SelectItem
-                              key={iol.id}
-                              value={iol.id.toString()}
-                              disabled={selectedIolIds.includes(iol.id)}
-                            >
-                              {iol.model}
-                              <span className="ml-1 text-muted-foreground text-xs">
-                                ({IOL_TYPE_LABELS[iol.type] || iol.type})
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <IOLCascadeSelect
+                    selectedIolId={addingId}
+                    onChange={setAddingId}
+                    allowNone={false}
+                  />
                   <Button
                     onClick={addIOL}
                     disabled={!addingId}
@@ -417,9 +385,9 @@ export default function Compare() {
                           <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">IOL</th>
                           <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Fabricante</th>
                           <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Tipo</th>
+                          <th className="text-center px-4 py-2.5 font-semibold text-muted-foreground">Constante A</th>
                           <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Design</th>
                           <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Material</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Poder</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -443,9 +411,15 @@ export default function Compare() {
                                 {IOL_TYPE_LABELS[iol.type] || iol.type}
                               </Badge>
                             </td>
+                            <td className="px-4 py-3 text-center">
+                              {iol.aConstant ? (
+                                <span className="font-mono font-semibold text-primary">{iol.aConstant}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic text-[10px]">Consultar</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-muted-foreground">{iol.opticDesign || "—"}</td>
                             <td className="px-4 py-3 text-muted-foreground">{iol.material || "—"}</td>
-                            <td className="px-4 py-3 text-muted-foreground">{iol.powerRange || "—"}</td>
                           </tr>
                         ))}
                       </tbody>

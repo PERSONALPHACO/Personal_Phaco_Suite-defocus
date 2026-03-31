@@ -26,6 +26,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation, useParams } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
+import IOLCascadeSelect from "@/components/IOLCascadeSelect";
 
 // Standard defocus curve diopter values
 const DEFAULT_DIOPTERS = [-5, -4.5, -4, -3.5, -3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1];
@@ -191,20 +192,26 @@ export default function NewMeasurement() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>IOL Associada (opcional)</Label>
-                  <Select value={patientIolId} onValueChange={setPatientIolId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a IOL implantada" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem IOL específica</SelectItem>
-                      {patientIols.map((piol) => (
-                        <SelectItem key={piol.id} value={piol.id.toString()}>
-                          {piol.eye} — {piol.manufacturerName} {piol.iolModel}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-sm font-medium text-foreground">IOL Associada (opcional)</Label>
+                  {patientIols.length > 0 ? (
+                    <Select value={patientIolId} onValueChange={setPatientIolId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a IOL do paciente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem IOL específica</SelectItem>
+                        {patientIols.map((piol) => (
+                          <SelectItem key={piol.id} value={piol.id.toString()}>
+                            {piol.eye} — {piol.manufacturerName} {piol.iolModel}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic p-2 bg-muted/30 rounded-lg border">
+                      Nenhuma IOL associada a este paciente. Associe uma IOL no perfil do paciente primeiro.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

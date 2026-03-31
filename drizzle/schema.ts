@@ -53,6 +53,7 @@ export const iols = mysqlTable("iols", {
   material: varchar("material", { length: 64 }),
   opticDesign: varchar("opticDesign", { length: 128 }),
   powerRange: varchar("powerRange", { length: 64 }),
+  aConstant: decimal("aConstant", { precision: 5, scale: 1 }), // Constante A para cálculo de potência
   notes: text("notes"),
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

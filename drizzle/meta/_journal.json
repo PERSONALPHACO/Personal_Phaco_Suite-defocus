@@ -15,6 +15,13 @@
       "when": 1774913816106,
       "tag": "0001_marvelous_skaar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774989904727,
+      "tag": "0002_married_prowler",
+      "breakpoints": true
     }
   ]
 }

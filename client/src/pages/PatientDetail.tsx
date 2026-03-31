@@ -42,6 +42,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import IOLCascadeSelect from "@/components/IOLCascadeSelect";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { useLocation, useParams } from "wouter";
@@ -282,21 +283,10 @@ export default function PatientDetail() {
                       </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={iolForm.handleSubmit(onSubmitIOL)} className="space-y-4">
-                      <div className="space-y-1.5">
-                        <Label>IOL *</Label>
-                        <Select onValueChange={(v) => iolForm.setValue("iolId", v)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a IOL" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allIols.map((iol) => (
-                              <SelectItem key={iol.id} value={iol.id.toString()}>
-                                {iol.manufacturerName} — {iol.model}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <IOLCascadeSelect
+                        selectedIolId={iolForm.watch("iolId") ? parseInt(iolForm.watch("iolId")) : undefined}
+                        onChange={(id) => iolForm.setValue("iolId", id ? id.toString() : "")}
+                      />
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
