@@ -319,6 +319,64 @@ export async function deleteMeasurementPoints(measurementId: number) {
   await db.delete(measurementPoints).where(eq(measurementPoints.measurementId, measurementId));
 }
 
+// ─── IOL Curves (curvas reais por IOL) ──────────────────────────────────────
+
+/**
+ * Retorna todas as medições reais associadas a uma IOL específica,
+ * com seus pontos de curva de defoque. Dados anonimizados (sem nome do paciente).
+ */
+export async function getIOLCurves(iolId: number) {
+  const db = await getDb();
+  if (!db) return { curves: [], count: 0 };
+
+  // Buscar todas as medições que usaram esta IOL
+  const measurementRows = await db
+    .select({
+      measurementId: measurements.id,
+      measurementDate: measurements.measurementDate,
+      eye: measurements.eye,
+      notes: measurements.notes,
+      patientIolId: measurements.patientIolId,
+      refractiveTarget: patientIols.refractiveTarget,
+    })
+    .from(measurements)
+    .innerJoin(patientIols, eq(measurements.patientIolId, patientIols.id))
+    .where(eq(patientIols.iolId, iolId))
+    .orderBy(desc(measurements.measurementDate));
+
+  if (measurementRows.length === 0) return { curves: [], count: 0 };
+
+  // Para cada medição, buscar os pontos
+  const curves = await Promise.all(
+    measurementRows.map(async (m) => {
+      const points = await db
+        .select({
+          diopter: measurementPoints.diopter,
+          visualAcuity: measurementPoints.visualAcuity,
+        })
+        .from(measurementPoints)
+        .where(eq(measurementPoints.measurementId, m.measurementId))
+        .orderBy(asc(measurementPoints.diopter));
+
+      return {
+        measurementId: m.measurementId,
+        measurementDate: m.measurementDate,
+        eye: m.eye,
+        refractiveTarget: m.refractiveTarget,
+        points: points.map((p) => ({
+          diopter: Number(p.diopter),
+          visualAcuity: Number(p.visualAcuity),
+        })),
+      };
+    })
+  );
+
+  // Filtrar curvas que têm pelo menos 1 ponto
+  const validCurves = curves.filter((c) => c.points.length > 0);
+
+  return { curves: validCurves, count: validCurves.length };
+}
+
 // ─── Aggregated IOL data (for comparison) ────────────────────────────────────
 
 export async function getIOLComparisonData(iolIds: number[]) {

@@ -78,3 +78,9 @@
 - [x] Dropdown em cascata: fabricante → IOL em NewMeasurement (selecionar IOL da medição)
 - [x] Dropdown em cascata: fabricante → IOL na página Compare
 - [x] Exibir constante A na ficha da IOL e na comparação
+
+## IOL Detail Sheet (Curvas Reais por IOL)
+- [x] Procedure backend: buscar todas as curvas reais associadas a uma IOL específica (por iolId)
+- [x] Componente IOLDetailSheet: painel lateral com contador "n", gráfico de curvas sobrepostas e lista de medições
+- [x] Integrar click handler na página de IOLs para abrir o sheet
+- [x] Exibir badge "n curvas" em cada card de IOL na listagem

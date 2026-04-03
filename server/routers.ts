@@ -26,6 +26,7 @@ import {
   createMeasurementPoints,
   deleteMeasurementPoints,
   getIOLComparisonData,
+  getIOLCurves,
 } from "./db";
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
@@ -124,6 +125,13 @@ export const appRouter = router({
       .input(z.object({ iolIds: z.array(z.number()).min(1).max(8) }))
       .query(async ({ input }) => {
         return getIOLComparisonData(input.iolIds);
+      }),
+
+    // Retorna todas as curvas reais de defoque associadas a uma IOL específica
+    curves: publicProcedure
+      .input(z.object({ iolId: z.number() }))
+      .query(async ({ input }) => {
+        return getIOLCurves(input.iolId);
       }),
   }),
 

@@ -22,10 +22,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Eye, Filter, Plus, Search } from "lucide-react";
+import { Eye, Filter, Plus, Search, TrendingUp, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
+import IOLDetailSheet from "@/components/IOLDetailSheet";
 
 const IOL_TYPES = [
   { value: "monofocal", label: "Monofocal", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -45,11 +46,145 @@ type IOLFormData = {
   notes: string;
 };
 
+type IOLItem = {
+  id: number;
+  model: string;
+  type: "monofocal" | "bifocal" | "trifocal" | "edof" | "toric";
+  manufacturerId: number;
+  manufacturerName: string | null;
+  manufacturerCountry: string | null;
+  aConstant: string | null;
+  opticDesign: string | null;
+  material: string | null;
+  powerRange: string | null;
+  notes: string | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+// ─── IOL Card with n-curves badge ─────────────────────────────────────────────
+
+function IOLCard({
+  iol,
+  onClick,
+}: {
+  iol: IOLItem;
+  onClick: () => void;
+}) {
+  const { data } = trpc.iols.curves.useQuery({ iolId: iol.id });
+  const n = data?.count ?? 0;
+  const hasData = n > 0;
+
+  const typeInfo =
+    IOL_TYPES.find((t) => t.value === iol.type) || {
+      label: iol.type,
+      color: "bg-muted text-muted-foreground border-border",
+    };
+
+  return (
+    <Card
+      key={iol.id}
+      className="border hover:shadow-md hover:border-primary/30 transition-all overflow-hidden cursor-pointer group"
+      onClick={onClick}
+    >
+      {/* Top accent bar — green if has real data, blue otherwise */}
+      <div
+        className={`h-1.5 bg-gradient-to-r transition-all ${
+          hasData
+            ? "from-emerald-500 to-emerald-400"
+            : "from-primary to-primary/40"
+        }`}
+      />
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Eye className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground truncate">
+                {iol.model}
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground font-medium">
+              {iol.manufacturerName}
+              {iol.manufacturerCountry && (
+                <span className="ml-1 text-muted-foreground/60">
+                  · {iol.manufacturerCountry}
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 ml-2 shrink-0">
+            <Badge variant="outline" className={`text-xs ${typeInfo.color}`}>
+              {typeInfo.label}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Specs */}
+        <div className="space-y-1.5 mt-3">
+          {iol.aConstant && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-20 shrink-0">Const. A:</span>
+              <span className="text-xs font-mono font-bold text-primary">{iol.aConstant}</span>
+            </div>
+          )}
+          {iol.opticDesign && (
+            <div className="flex items-start gap-2">
+              <span className="text-xs text-muted-foreground w-20 shrink-0">Design:</span>
+              <span className="text-xs text-foreground">{iol.opticDesign}</span>
+            </div>
+          )}
+          {iol.material && (
+            <div className="flex items-start gap-2">
+              <span className="text-xs text-muted-foreground w-20 shrink-0">Material:</span>
+              <span className="text-xs text-foreground">{iol.material}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer: n-curves badge + click hint */}
+        <div className="flex items-center justify-between mt-4 pt-3 border-t">
+          {hasData ? (
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
+                <TrendingUp className="w-3 h-3 text-emerald-600" />
+              </div>
+              <span className="text-xs font-semibold text-emerald-700">
+                n = {n} {n === 1 ? "curva" : "curvas"}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center">
+                <TrendingUp className="w-3 h-3 text-muted-foreground" />
+              </div>
+              <span className="text-xs text-muted-foreground">Sem curvas ainda</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+            <span>Ver curvas</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function IOLs() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterManufacturer, setFilterManufacturer] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Sheet state
+  const [selectedIOL, setSelectedIOL] = useState<IOLItem | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data: iols = [], refetch: refetchIOLs } = trpc.iols.list.useQuery();
   const { data: manufacturers = [] } = trpc.manufacturers.list.useQuery();
@@ -64,7 +199,7 @@ export default function IOLs() {
     onError: (err) => toast.error("Erro ao cadastrar IOL: " + err.message),
   });
 
-  const { register, handleSubmit, setValue, reset, watch } = useForm<IOLFormData>({
+  const { register, handleSubmit, setValue, reset } = useForm<IOLFormData>({
     defaultValues: { type: "trifocal" },
   });
 
@@ -84,6 +219,11 @@ export default function IOLs() {
     });
   };
 
+  const handleIOLClick = (iol: IOLItem) => {
+    setSelectedIOL(iol);
+    setSheetOpen(true);
+  };
+
   const filtered = iols.filter((iol) => {
     const matchSearch =
       !search ||
@@ -95,9 +235,6 @@ export default function IOLs() {
     return matchSearch && matchType && matchMfr;
   });
 
-  const getTypeInfo = (type: string) =>
-    IOL_TYPES.find((t) => t.value === type) || { label: type, color: "bg-muted text-muted-foreground border-border" };
-
   return (
     <DefocusLayout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -106,7 +243,7 @@ export default function IOLs() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Biblioteca de IOLs</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {iols.length} lentes intraoculares cadastradas
+              {iols.length} lentes intraoculares cadastradas — clique em uma IOL para ver as curvas
             </p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -151,10 +288,7 @@ export default function IOLs() {
 
                   <div className="space-y-1.5">
                     <Label>Tipo *</Label>
-                    <Select
-                      defaultValue="trifocal"
-                      onValueChange={(v) => setValue("type", v)}
-                    >
+                    <Select defaultValue="trifocal" onValueChange={(v) => setValue("type", v)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -272,75 +406,23 @@ export default function IOLs() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((iol) => {
-              const typeInfo = getTypeInfo(iol.type);
-              return (
-                <Card
-                  key={iol.id}
-                  className="border hover:shadow-md transition-shadow overflow-hidden"
-                >
-                  <div className="h-1.5 bg-gradient-to-r from-primary to-primary/40" />
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                            <Eye className="w-3.5 h-3.5 text-primary" />
-                          </div>
-                          <h3 className="font-bold text-foreground text-sm truncate">
-                            {iol.model}
-                          </h3>
-                        </div>
-                        <p className="text-xs text-muted-foreground font-medium">
-                          {iol.manufacturerName}
-                          {iol.manufacturerCountry && (
-                            <span className="ml-1 text-muted-foreground/60">
-                              · {iol.manufacturerCountry}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={`text-xs shrink-0 ml-2 ${typeInfo.color}`}
-                      >
-                        {typeInfo.label}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-1.5 mt-3">
-                      {iol.opticDesign && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-xs text-muted-foreground w-20 shrink-0">Design:</span>
-                          <span className="text-xs text-foreground">{iol.opticDesign}</span>
-                        </div>
-                      )}
-                      {iol.material && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-xs text-muted-foreground w-20 shrink-0">Material:</span>
-                          <span className="text-xs text-foreground">{iol.material}</span>
-                        </div>
-                      )}
-                      {iol.powerRange && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-xs text-muted-foreground w-20 shrink-0">Poder:</span>
-                          <span className="text-xs text-foreground font-medium">{iol.powerRange}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {iol.notes && (
-                      <p className="text-xs text-muted-foreground mt-3 pt-3 border-t leading-relaxed line-clamp-2">
-                        {iol.notes}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {filtered.map((iol) => (
+              <IOLCard
+                key={iol.id}
+                iol={iol as IOLItem}
+                onClick={() => handleIOLClick(iol as IOLItem)}
+              />
+            ))}
           </div>
         )}
       </div>
+
+      {/* IOL Detail Sheet */}
+      <IOLDetailSheet
+        iol={selectedIOL}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+      />
     </DefocusLayout>
   );
 }
