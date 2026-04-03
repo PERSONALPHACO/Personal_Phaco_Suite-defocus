@@ -96,3 +96,6 @@
 ## Bug Fix - manufacturerName null
 - [x] Investigar por que algumas IOLs chegam com manufacturerName null no frontend
 - [x] Corrigir JOIN ou manufacturer_id nas IOLs sem fabricante associado
+
+## UI Consistency
+- [x] Substituir ícone de olho no cabeçalho do IOLDetailSheet pelo avatar colorido do fabricante

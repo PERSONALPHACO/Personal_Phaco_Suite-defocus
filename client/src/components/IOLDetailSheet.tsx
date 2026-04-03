@@ -19,7 +19,39 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { Activity, Eye, Info, TrendingUp, Calendar } from "lucide-react";
+import { Activity, Info, TrendingUp, Calendar } from "lucide-react";
+
+// ─── Manufacturer avatar (shared with IOLs page) ──────────────────────────────
+
+const MFR_MAP: Record<string, { bg: string; text: string; initials: string }> = {
+  "Zeiss":                    { bg: "#E8F1FD", text: "#0072EF", initials: "ZSS" },
+  "Alcon":                    { bg: "#E6EBF5", text: "#003595", initials: "ALC" },
+  "Johnson & Johnson Vision": { bg: "#FDECEA", text: "#C41200", initials: "J&J" },
+  "Hoya":                     { bg: "#E6F0F9", text: "#0068B6", initials: "HOY" },
+  "Rayner":                   { bg: "#EEF6E6", text: "#4A7D1E", initials: "RAY" },
+  "Bausch & Lomb":            { bg: "#E5F3F5", text: "#007B8A", initials: "B+L" },
+  "Hanita Lenses":            { bg: "#EAF0FB", text: "#1A4FA0", initials: "HAN" },
+  "Teleon Surgical":          { bg: "#EBF6EA", text: "#2E7A28", initials: "TEL" },
+  "PhysIOL":                  { bg: "#EEE9F8", text: "#5B2D9E", initials: "PHY" },
+  "Medicontour (Vertek)":     { bg: "#FDF3E6", text: "#B45309", initials: "MED" },
+  "Biotech":                  { bg: "#E6F4EE", text: "#0A6B3D", initials: "BIO" },
+  "Leedsay":                  { bg: "#EAF0F8", text: "#2C5282", initials: "LEE" },
+};
+
+function getMfrStyle(name: string | null): { bg: string; text: string; initials: string } {
+  if (!name) return { bg: "#F1F5F9", text: "#64748B", initials: "?" };
+  if (MFR_MAP[name]) return MFR_MAP[name];
+  const lower = name.toLowerCase();
+  for (const [key, val] of Object.entries(MFR_MAP)) {
+    if (lower.includes(key.toLowerCase().split(" ")[0])) return val;
+  }
+  const hue = name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+  return {
+    bg: `hsl(${hue}, 60%, 93%)`,
+    text: `hsl(${hue}, 60%, 30%)`,
+    initials: name.split(/[\s&+/]+/).filter(Boolean).slice(0, 3).map((w) => w[0].toUpperCase()).join(""),
+  };
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -140,9 +172,22 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <Eye className="w-4 h-4 text-primary" />
-                </div>
+                {(() => {
+                  const style = getMfrStyle(iol.manufacturerName);
+                  return (
+                    <div
+                      style={{ background: style.bg }}
+                      className="w-10 h-7 rounded-md flex items-center justify-center shrink-0"
+                    >
+                      <span
+                        style={{ color: style.text }}
+                        className="text-[10px] font-black tracking-tight leading-none"
+                      >
+                        {style.initials}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <SheetTitle className="text-lg font-bold text-foreground leading-tight">
                   {iol.model}
                 </SheetTitle>
