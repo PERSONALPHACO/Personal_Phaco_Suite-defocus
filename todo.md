@@ -134,3 +134,8 @@
 - [x] Eixo Y: logMAR -0.1 (topo) a 0.6 (base)
 - [x] Eixo X: +1.0 (esquerda) a -3.5 (direita)
 - [x] Linhas de referência: 0.20 logMAR (corte funcional) e 0 D (plano)
+
+## Correção Eixo Y - Orientação Clínica
+- [x] Eixo Y: -0,1 no TOPO e 0,6 na BASE (interseção com eixo X) em todos os gráficos
+- [x] Recharts: usar reversed={true} com domain={[-0.1, 0.6]} para orientação correta
+- [x] Aplicar em PatientDetail, IOLDetailSheet, Compare e NewMeasurement

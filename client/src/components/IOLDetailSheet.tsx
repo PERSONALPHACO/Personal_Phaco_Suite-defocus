@@ -331,8 +331,8 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                       tick={{ fontSize: 10 }}
                     />
                     <YAxis
-                      domain={[0.6, -0.1]}
-                      reversed={false}
+                      domain={[-0.1, 0.6]}
+                      reversed={true}
                       ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                       tickFormatter={(v) => v.toFixed(1)}
                       label={{
@@ -416,8 +416,8 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                           tick={{ fontSize: 10 }}
                         />
                         <YAxis
-                          domain={[0.6, -0.1]}
-                          reversed={false}
+                          domain={[-0.1, 0.6]}
+                          reversed={true}
                           ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                           tickFormatter={(v) => v.toFixed(1)}
                           label={{

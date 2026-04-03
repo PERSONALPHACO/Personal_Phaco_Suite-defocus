@@ -433,8 +433,8 @@ export default function NewMeasurement() {
                           tick={{ fontSize: 9 }}
                         />
                         <YAxis
-                          domain={[0.6, -0.1]}
-                          reversed={false}
+                          domain={[-0.1, 0.6]}
+                          reversed={true}
                           ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                           tickFormatter={(v) => v.toFixed(1)}
                           label={{ value: "logMAR", angle: -90, position: "insideLeft", offset: 5, fontSize: 10 }}

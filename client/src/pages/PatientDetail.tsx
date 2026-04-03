@@ -703,7 +703,7 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
                 X: +1.0 at LEFT → -3.5 at RIGHT  (positives first, then negatives)
                    Recharts: domain=[-3.5, 1.0] + reversed=true renders +1.0 on left
                 Y: -0.1 at TOP (best vision) → 0.6 at BOTTOM (worst vision)
-                   Recharts: domain=[0.6, -0.1] without reversed renders -0.1 on top
+                   Recharts: domain=[-0.1, 0.6] + reversed=true renders -0.1 on top
               */}
               <XAxis
                 dataKey="diopter"
@@ -716,8 +716,8 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
                 tick={{ fontSize: 10 }}
               />
               <YAxis
-                domain={[0.6, -0.1]}
-                reversed={false}
+                domain={[-0.1, 0.6]}
+                reversed={true}
                 ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                 tickFormatter={(v) => v.toFixed(1)}
                 label={{ value: "Acuidade Visual (logMAR)", angle: -90, position: "insideLeft", offset: 5, fontSize: 11 }}
