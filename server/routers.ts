@@ -23,6 +23,7 @@ import {
   createMeasurement,
   deleteMeasurement,
   getMeasurementPoints,
+  getPointsForMeasurements,
   createMeasurementPoints,
   deleteMeasurementPoints,
   getIOLComparisonData,
@@ -245,6 +246,13 @@ export const appRouter = router({
       .input(z.object({ measurementId: z.number() }))
       .query(async ({ input }) => {
         return getMeasurementPoints(input.measurementId);
+      }),
+
+    /** Batch: retorna pontos de múltiplas medições de uma vez */
+    pointsBatch: protectedProcedure
+      .input(z.object({ measurementIds: z.array(z.number()) }))
+      .query(async ({ input }) => {
+        return getPointsForMeasurements(input.measurementIds);
       }),
 
     create: protectedProcedure

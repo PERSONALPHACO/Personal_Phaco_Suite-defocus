@@ -41,7 +41,7 @@ import {
   Shield,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import IOLCascadeSelect from "@/components/IOLCascadeSelect";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -526,8 +526,17 @@ export default function PatientDetail() {
 // ─── Defocus Chart Component ─────────────────────────────────────────────────
 
 function DefocusChart({ patientId, measurements }: { patientId: number; measurements: any[] }) {
-  const [selectedIds, setSelectedIds] = useState<number[]>(
+  // All hooks MUST be called unconditionally at the top level
+  const allIds = useMemo(() => measurements.map((m) => m.id), [measurements]);
+
+  const [selectedIds, setSelectedIds] = useState<number[]>(() =>
     measurements.slice(0, 3).map((m) => m.id)
+  );
+
+  // Single batch query — stable reference via useMemo, no hooks-in-map violation
+  const { data: batchPoints } = trpc.measurements.pointsBatch.useQuery(
+    { measurementIds: allIds },
+    { enabled: allIds.length > 0 }
   );
 
   const toggleMeasurement = (id: number) => {
@@ -536,39 +545,31 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
     );
   };
 
-  // Fetch points for each selected measurement
-  const pointsQueries = selectedIds.map((id) => ({
-    id,
-    query: trpc.measurements.points.useQuery({ measurementId: id }),
-  }));
+  // Build unified chart data from batch result
+  const { chartData, seriesData } = useMemo(() => {
+    const seriesData: Record<number, Record<number, number>> = {};
+    const allDiopterValues = new Set<number>();
 
-  // Build unified chart data
-  const allDiopterValues = new Set<number>();
-  const seriesData: Record<number, Record<number, number>> = {};
-
-  pointsQueries.forEach(({ id, query }) => {
-    if (query.data) {
-      seriesData[id] = {};
-      query.data.forEach((pt) => {
-        const d = parseFloat(pt.diopter as any);
-        const va = parseFloat(pt.visualAcuity as any);
-        allDiopterValues.add(d);
-        seriesData[id][d] = va;
-      });
-    }
-  });
-
-  const sortedDiopters = Array.from(allDiopterValues).sort((a, b) => a - b);
-
-  const chartData = sortedDiopters.map((d) => {
-    const row: Record<string, any> = { diopter: d };
-    selectedIds.forEach((id) => {
-      if (seriesData[id]) {
-        row[`m_${id}`] = seriesData[id][d] ?? null;
-      }
+    (batchPoints ?? []).forEach((pt) => {
+      const id = pt.measurementId;
+      const d = parseFloat(pt.diopter as any);
+      const va = parseFloat(pt.visualAcuity as any);
+      if (!seriesData[id]) seriesData[id] = {};
+      seriesData[id][d] = va;
+      allDiopterValues.add(d);
     });
-    return row;
-  });
+
+    const sortedDiopters = Array.from(allDiopterValues).sort((a, b) => a - b);
+    const chartData = sortedDiopters.map((d) => {
+      const row: Record<string, any> = { diopter: d };
+      selectedIds.forEach((id) => {
+        if (seriesData[id]) row[`m_${id}`] = seriesData[id][d] ?? null;
+      });
+      return row;
+    });
+
+    return { chartData, seriesData };
+  }, [batchPoints, selectedIds]);
 
   const getMeasurementLabel = (id: number) => {
     const m = measurements.find((x) => x.id === id);

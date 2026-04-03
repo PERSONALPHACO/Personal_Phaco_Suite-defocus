@@ -1,4 +1,4 @@
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -303,6 +303,17 @@ export async function getMeasurementPoints(measurementId: number) {
     .select()
     .from(measurementPoints)
     .where(eq(measurementPoints.measurementId, measurementId))
+    .orderBy(asc(measurementPoints.diopter));
+}
+
+/** Retorna pontos de múltiplas medições de uma vez (evita N queries no frontend) */
+export async function getPointsForMeasurements(measurementIds: number[]) {
+  const db = await getDb();
+  if (!db || measurementIds.length === 0) return [];
+  return db
+    .select()
+    .from(measurementPoints)
+    .where(inArray(measurementPoints.measurementId, measurementIds))
     .orderBy(asc(measurementPoints.diopter));
 }
 

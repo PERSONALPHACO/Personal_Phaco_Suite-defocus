@@ -99,3 +99,6 @@
 
 ## UI Consistency
 - [x] Substituir ícone de olho no cabeçalho do IOLDetailSheet pelo avatar colorido do fabricante
+
+## Bug Fix - Rules of Hooks
+- [x] Corrigir violação das Regras dos Hooks em DefocusChart (hook chamado após return condicional)
