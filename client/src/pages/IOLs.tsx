@@ -63,61 +63,56 @@ type IOLItem = {
   updatedAt: Date;
 };
 
-// ─── Manufacturer avatar colors ──────────────────────────────────────────────
+// ─── Manufacturer avatar — brand colors + initials ──────────────────────────────────
 
-const MFR_COLORS: Record<string, { bg: string; text: string }> = {
-  zeiss:       { bg: "bg-sky-100",    text: "text-sky-700" },
-  alcon:       { bg: "bg-blue-100",   text: "text-blue-700" },
-  "johnson":   { bg: "bg-red-100",    text: "text-red-700" },
-  hoya:        { bg: "bg-violet-100", text: "text-violet-700" },
-  rayner:      { bg: "bg-teal-100",   text: "text-teal-700" },
-  "bausch":    { bg: "bg-orange-100", text: "text-orange-700" },
-  hanita:      { bg: "bg-lime-100",   text: "text-lime-700" },
-  teleon:      { bg: "bg-pink-100",   text: "text-pink-700" },
-  physiol:     { bg: "bg-indigo-100", text: "text-indigo-700" },
-  medicontour: { bg: "bg-amber-100",  text: "text-amber-700" },
-  biotech:     { bg: "bg-emerald-100",text: "text-emerald-700" },
-  leedsay:     { bg: "bg-cyan-100",   text: "text-cyan-700" },
+/**
+ * Maps exact manufacturer names (as stored in DB) to brand color + initials.
+ * Colors sourced from official brand guidelines / Brandfetch.
+ * Fallback uses a deterministic hue derived from the name string.
+ */
+const MFR_MAP: Record<string, { bg: string; text: string; initials: string }> = {
+  // Zeiss: official blue #0072EF
+  "Zeiss":                    { bg: "#E8F1FD", text: "#0072EF", initials: "ZSS" },
+  // Alcon: official navy #003595
+  "Alcon":                    { bg: "#E6EBF5", text: "#003595", initials: "ALC" },
+  // Johnson & Johnson Vision: official red #EB1700
+  "Johnson & Johnson Vision": { bg: "#FDECEA", text: "#C41200", initials: "J&J" },
+  // Hoya: official blue #0068B6
+  "Hoya":                     { bg: "#E6F0F9", text: "#0068B6", initials: "HOY" },
+  // Rayner: official green #61A328
+  "Rayner":                   { bg: "#EEF6E6", text: "#4A7D1E", initials: "RAY" },
+  // Bausch & Lomb: official teal/purple — using their teal #007B8A
+  "Bausch & Lomb":            { bg: "#E5F3F5", text: "#007B8A", initials: "B+L" },
+  // Hanita Lenses: deep blue from their brand refresh
+  "Hanita Lenses":            { bg: "#EAF0FB", text: "#1A4FA0", initials: "HAN" },
+  // Teleon Surgical: official green #45A63E
+  "Teleon Surgical":          { bg: "#EBF6EA", text: "#2E7A28", initials: "TEL" },
+  // PhysIOL: corporate violet/indigo
+  "PhysIOL":                  { bg: "#EEE9F8", text: "#5B2D9E", initials: "PHY" },
+  // Medicontour (Vertek): warm amber — elegant choice
+  "Medicontour (Vertek)":     { bg: "#FDF3E6", text: "#B45309", initials: "MED" },
+  // Biotech: emerald green
+  "Biotech":                  { bg: "#E6F4EE", text: "#0A6B3D", initials: "BIO" },
+  // Leedsay: slate blue — elegant choice
+  "Leedsay":                  { bg: "#EAF0F8", text: "#2C5282", initials: "LEE" },
 };
 
-function getMfrColor(name: string | null) {
-  if (!name) return { bg: "bg-slate-100", text: "text-slate-600" };
-  const key = name.toLowerCase();
-  for (const [k, v] of Object.entries(MFR_COLORS)) {
-    if (key.includes(k)) return v;
-  }
-  return { bg: "bg-slate-100", text: "text-slate-600" };
-}
-
-/** Returns up to 3 uppercase initials from a manufacturer name */
-function getMfrInitials(name: string | null): string {
-  if (!name) return "?";
-  // Special short names used as-is
-  const specials: Record<string, string> = {
-    "zeiss": "ZSS",
-    "alcon": "ALC",
-    "hoya": "HOY",
-    "rayner": "RAY",
-    "hanita": "HAN",
-    "teleon": "TEL",
-    "physiol": "PHY",
-    "biotech": "BIO",
-    "leedsay": "LEE",
-  };
+function getMfrStyle(name: string | null): { bg: string; text: string; initials: string } {
+  if (!name) return { bg: "#F1F5F9", text: "#64748B", initials: "?" };
+  // Exact match first
+  if (MFR_MAP[name]) return MFR_MAP[name];
+  // Partial match fallback
   const lower = name.toLowerCase();
-  for (const [k, v] of Object.entries(specials)) {
-    if (lower.includes(k)) return v;
+  for (const [key, val] of Object.entries(MFR_MAP)) {
+    if (lower.includes(key.toLowerCase().split(" ")[0])) return val;
   }
-  if (lower.includes("johnson")) return "J&J";
-  if (lower.includes("bausch")) return "B+L";
-  if (lower.includes("medicontour") || lower.includes("vertek")) return "MED";
-  // Generic: first letter of each word, max 3
-  return name
-    .split(/[\s&+/]+/)
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((w) => w[0].toUpperCase())
-    .join("");
+  // Deterministic fallback: hash name to a hue
+  const hue = name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+  return {
+    bg: `hsl(${hue}, 60%, 93%)`,
+    text: `hsl(${hue}, 60%, 30%)`,
+    initials: name.split(/[\s&+/]+/).filter(Boolean).slice(0, 3).map((w) => w[0].toUpperCase()).join(""),
+  };
 }
 
 // ─── IOL Card with n-curves badge ─────────────────────────────────────────────
@@ -157,16 +152,19 @@ function IOLCard({
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              {/* Manufacturer avatar — initials with brand color */}
+              {/* Manufacturer avatar — brand color + initials */}
               {(() => {
-                const { bg, text } = getMfrColor(iol.manufacturerName);
-                const initials = getMfrInitials(iol.manufacturerName);
+                const style = getMfrStyle(iol.manufacturerName);
                 return (
                   <div
-                    className={`w-9 h-7 rounded-md ${bg} flex items-center justify-center shrink-0`}
+                    style={{ background: style.bg }}
+                    className="w-10 h-7 rounded-md flex items-center justify-center shrink-0"
                   >
-                    <span className={`text-[10px] font-black tracking-tight leading-none ${text}`}>
-                      {initials}
+                    <span
+                      style={{ color: style.text }}
+                      className="text-[10px] font-black tracking-tight leading-none"
+                    >
+                      {style.initials}
                     </span>
                   </div>
                 );
