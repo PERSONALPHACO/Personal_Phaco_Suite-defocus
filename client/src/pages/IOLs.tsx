@@ -22,7 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Eye, Filter, Plus, Search, TrendingUp, ChevronRight } from "lucide-react";
+import { Filter, Plus, Search, TrendingUp, ChevronRight, Layers } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -63,6 +63,63 @@ type IOLItem = {
   updatedAt: Date;
 };
 
+// ─── Manufacturer avatar colors ──────────────────────────────────────────────
+
+const MFR_COLORS: Record<string, { bg: string; text: string }> = {
+  zeiss:       { bg: "bg-sky-100",    text: "text-sky-700" },
+  alcon:       { bg: "bg-blue-100",   text: "text-blue-700" },
+  "johnson":   { bg: "bg-red-100",    text: "text-red-700" },
+  hoya:        { bg: "bg-violet-100", text: "text-violet-700" },
+  rayner:      { bg: "bg-teal-100",   text: "text-teal-700" },
+  "bausch":    { bg: "bg-orange-100", text: "text-orange-700" },
+  hanita:      { bg: "bg-lime-100",   text: "text-lime-700" },
+  teleon:      { bg: "bg-pink-100",   text: "text-pink-700" },
+  physiol:     { bg: "bg-indigo-100", text: "text-indigo-700" },
+  medicontour: { bg: "bg-amber-100",  text: "text-amber-700" },
+  biotech:     { bg: "bg-emerald-100",text: "text-emerald-700" },
+  leedsay:     { bg: "bg-cyan-100",   text: "text-cyan-700" },
+};
+
+function getMfrColor(name: string | null) {
+  if (!name) return { bg: "bg-slate-100", text: "text-slate-600" };
+  const key = name.toLowerCase();
+  for (const [k, v] of Object.entries(MFR_COLORS)) {
+    if (key.includes(k)) return v;
+  }
+  return { bg: "bg-slate-100", text: "text-slate-600" };
+}
+
+/** Returns up to 3 uppercase initials from a manufacturer name */
+function getMfrInitials(name: string | null): string {
+  if (!name) return "?";
+  // Special short names used as-is
+  const specials: Record<string, string> = {
+    "zeiss": "ZSS",
+    "alcon": "ALC",
+    "hoya": "HOY",
+    "rayner": "RAY",
+    "hanita": "HAN",
+    "teleon": "TEL",
+    "physiol": "PHY",
+    "biotech": "BIO",
+    "leedsay": "LEE",
+  };
+  const lower = name.toLowerCase();
+  for (const [k, v] of Object.entries(specials)) {
+    if (lower.includes(k)) return v;
+  }
+  if (lower.includes("johnson")) return "J&J";
+  if (lower.includes("bausch")) return "B+L";
+  if (lower.includes("medicontour") || lower.includes("vertek")) return "MED";
+  // Generic: first letter of each word, max 3
+  return name
+    .split(/[\s&+/]+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
+
 // ─── IOL Card with n-curves badge ─────────────────────────────────────────────
 
 function IOLCard({
@@ -100,9 +157,20 @@ function IOLCard({
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <Eye className="w-3.5 h-3.5 text-primary" />
-              </div>
+              {/* Manufacturer avatar — initials with brand color */}
+              {(() => {
+                const { bg, text } = getMfrColor(iol.manufacturerName);
+                const initials = getMfrInitials(iol.manufacturerName);
+                return (
+                  <div
+                    className={`w-9 h-7 rounded-md ${bg} flex items-center justify-center shrink-0`}
+                  >
+                    <span className={`text-[10px] font-black tracking-tight leading-none ${text}`}>
+                      {initials}
+                    </span>
+                  </div>
+                );
+              })()}
               <h3 className="text-sm font-bold text-foreground truncate">
                 {iol.model}
               </h3>
@@ -397,7 +465,7 @@ export default function IOLs() {
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Eye className="w-7 h-7 text-muted-foreground" />
+              <Layers className="w-7 h-7 text-muted-foreground" />
             </div>
             <p className="font-medium text-foreground">Nenhuma IOL encontrada</p>
             <p className="text-sm text-muted-foreground mt-1">

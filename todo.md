@@ -84,3 +84,6 @@
 - [x] Componente IOLDetailSheet: painel lateral com contador "n", gráfico de curvas sobrepostas e lista de medições
 - [x] Integrar click handler na página de IOLs para abrir o sheet
 - [x] Exibir badge "n curvas" em cada card de IOL na listagem
+
+## UI Refinements
+- [x] Substituir ícone de olho nos cards de IOL pela inicial/abreviação do fabricante com cor de fundo distinta por fabricante
