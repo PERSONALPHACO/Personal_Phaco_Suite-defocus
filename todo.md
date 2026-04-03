@@ -114,3 +114,23 @@
 - [x] Frontend: linha de corte funcional pontilhada em 0.20 logMAR
 - [x] Frontend: formulário de nova medição com entrada em Snellen/Decimal/logMAR configurável
 - [x] Frontend: stepper rápido para os níveis de defoco fixos (+1.0, +0.5, 0.0, -0.5, ..., -4.0)
+
+## Correção Crítica - Gráfico Defocus
+- [x] Eixo Y: logMAR com valores negativos no TOPO (-0.10 a 0.60), sem inversão artificial de escala
+- [x] Eixo X: +1.00 à esquerda → -3.50 à direita (positivos primeiro, depois negativos), passos de 0.50
+- [x] Curva em forma de sino com pico próximo a 0 D (melhor visão de longe)
+- [x] Formulário de entrada: pontos exatos do formulário físico (+1.00, +0.50, 0, -0.50, -1.00, -1.50, -2.00, -2.50, -3.00, -3.50)
+- [x] Remover inversão artificial do eixo Y (reversed=true estava causando o erro)
+- [x] Distâncias equivalentes no eixo X: ∞ (0D), 100cm (-1D), 50cm (-2D), 33cm (-3D)
+
+## IOLDetailSheet - Correção de Eixos
+- [x] Converter visualAcuity decimal para logMAR no IOLDetailSheet
+- [x] Eixo Y: logMAR -0.1 (topo) a 0.6 (base) em todos os gráficos
+- [x] Eixo X: +1.0 (esquerda) a -3.5 (direita) em todos os gráficos
+- [x] Tooltip atualizado para exibir logMAR + Snellen equivalente
+
+## Compare - Correção de Eixos
+- [x] Curvas de referência convertidas para logMAR (trifocal, EDOF, monofocal, bifocal, tórica)
+- [x] Eixo Y: logMAR -0.1 (topo) a 0.6 (base)
+- [x] Eixo X: +1.0 (esquerda) a -3.5 (direita)
+- [x] Linhas de referência: 0.20 logMAR (corte funcional) e 0 D (plano)

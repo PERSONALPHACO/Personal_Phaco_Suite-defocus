@@ -108,19 +108,23 @@ const EYE_LABELS: Record<string, string> = {
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-card border rounded-xl shadow-xl p-3 text-xs min-w-[160px]">
+    <div className="bg-card border rounded-xl shadow-xl p-3 text-xs min-w-[180px]">
       <p className="font-bold text-foreground mb-2 pb-1.5 border-b">
-        {Number(label) > 0 ? "+" : ""}{label} D
+        {Number(label) > 0 ? "+" : ""}{Number(label).toFixed(2)} D
       </p>
-      {payload.map((entry: any) => (
-        <div key={entry.dataKey} className="flex items-center justify-between gap-3 py-0.5">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: entry.color }} />
-            <span className="text-muted-foreground truncate max-w-[90px]">{entry.name}</span>
+      {payload.map((entry: any) => {
+        const lm = Number(entry.value);
+        const snellen = `20/${Math.round(20 * Math.pow(10, lm))}`;
+        return (
+          <div key={entry.dataKey} className="flex items-center justify-between gap-3 py-0.5">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: entry.color }} />
+              <span className="text-muted-foreground truncate max-w-[90px]">{entry.name}</span>
+            </div>
+            <span className="font-bold text-foreground">{lm.toFixed(2)} ({snellen})</span>
           </div>
-          <span className="font-bold text-foreground">{Number(entry.value).toFixed(2)}</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -141,21 +145,30 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
     new Set(curves.flatMap((c) => c.points.map((p) => p.diopter)))
   ).sort((a, b) => a - b);
 
+  // Convert decimal VA to logMAR: logMAR = -log10(decimal)
+  const toLogMAR = (decimal: number): number | null => {
+    if (decimal <= 0) return null;
+    return parseFloat((-Math.log10(decimal)).toFixed(3));
+  };
+
   const chartData = allDiopters.map((d) => {
     const row: Record<string, any> = { diopter: d };
     curves.forEach((curve, idx) => {
       const pt = curve.points.find((p) => p.diopter === d);
-      row[`curve_${idx}`] = pt?.visualAcuity ?? null;
+      row[`curve_${idx}`] = pt ? toLogMAR(pt.visualAcuity) : null;
     });
     return row;
   });
 
-  // Calculate mean curve (average AV per diopter)
+  // Calculate mean curve (average logMAR per diopter)
   const meanData = allDiopters.map((d) => {
-    const vals = curves
-      .map((c) => c.points.find((p) => p.diopter === d)?.visualAcuity)
-      .filter((v): v is number => v !== undefined);
-    const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    const logmarVals = curves
+      .map((c) => {
+        const pt = c.points.find((p) => p.diopter === d);
+        return pt ? toLogMAR(pt.visualAcuity) : null;
+      })
+      .filter((v): v is number => v !== null);
+    const avg = logmarVals.length > 0 ? logmarVals.reduce((a, b) => a + b, 0) / logmarVals.length : null;
     return { diopter: d, mean: avg !== null ? parseFloat(avg.toFixed(3)) : null };
   });
 
@@ -297,11 +310,17 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                 <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 28 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
+                    {/*
+                      X: +1.0 at LEFT → -3.5 at RIGHT
+                      Y: -0.1 at TOP (best) → 0.6 at BOTTOM (worst)
+                    */}
                     <XAxis
                       dataKey="diopter"
                       type="number"
-                      domain={["dataMin", "dataMax"]}
-                      tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
+                      domain={[-3.5, 1.0]}
+                      reversed={true}
+                      ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5]}
+                      tickFormatter={(v) => `${v > 0 ? "+" : ""}${Number(v).toFixed(2)}`}
                       label={{
                         value: "Defocus (D)",
                         position: "insideBottom",
@@ -312,11 +331,12 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                       tick={{ fontSize: 10 }}
                     />
                     <YAxis
-                      domain={[0, 1.1]}
-                      tickCount={7}
+                      domain={[0.6, -0.1]}
+                      reversed={false}
+                      ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                       tickFormatter={(v) => v.toFixed(1)}
                       label={{
-                        value: "AV (decimal)",
+                        value: "logMAR",
                         angle: -90,
                         position: "insideLeft",
                         offset: 15,
@@ -326,18 +346,23 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                       tick={{ fontSize: 10 }}
                     />
                     <Tooltip content={<CustomTooltip />} />
+                    {/* Vision zone backgrounds */}
+                    <ReferenceLine x={-0.5}  stroke="#93c5fd" strokeDasharray="2 2" strokeWidth={1} />
+                    <ReferenceLine x={-1.75} stroke="#86efac" strokeDasharray="2 2" strokeWidth={1} />
+                    {/* Functional cutoff at 0.20 logMAR */}
                     <ReferenceLine
-                      x={0}
-                      stroke="oklch(0.50 0.20 240)"
+                      y={0.20}
+                      stroke="#ef4444"
                       strokeDasharray="6 3"
                       strokeWidth={1.5}
+                      label={{ value: "0.20 logMAR", position: "insideTopRight", fontSize: 9, fill: "#ef4444" }}
                     />
+                    {/* Plano (0 D) reference */}
                     <ReferenceLine
-                      y={0.5}
-                      stroke="oklch(0.55 0.22 25)"
-                      strokeDasharray="4 4"
-                      strokeWidth={1}
-                      label={{ value: "20/40", position: "right", fontSize: 9, fill: "oklch(0.55 0.22 25)" }}
+                      x={0}
+                      stroke="#3b82f6"
+                      strokeDasharray="4 2"
+                      strokeWidth={1.5}
                     />
                     {curves.map((curve, idx) => (
                       <Line
@@ -370,11 +395,17 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                     <ResponsiveContainer width="100%" height={200}>
                       <LineChart data={meanData} margin={{ top: 8, right: 16, left: 0, bottom: 28 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
+                        {/*
+                          X: +1.0 at LEFT → -3.5 at RIGHT
+                          Y: -0.1 at TOP (best) → 0.6 at BOTTOM (worst)
+                        */}
                         <XAxis
                           dataKey="diopter"
                           type="number"
-                          domain={["dataMin", "dataMax"]}
-                          tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
+                          domain={[-3.5, 1.0]}
+                          reversed={true}
+                          ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5]}
+                          tickFormatter={(v) => `${v > 0 ? "+" : ""}${Number(v).toFixed(2)}`}
                           label={{
                             value: "Defocus (D)",
                             position: "insideBottom",
@@ -385,14 +416,36 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                           tick={{ fontSize: 10 }}
                         />
                         <YAxis
-                          domain={[0, 1.1]}
-                          tickCount={6}
+                          domain={[0.6, -0.1]}
+                          reversed={false}
+                          ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                           tickFormatter={(v) => v.toFixed(1)}
+                          label={{
+                            value: "logMAR",
+                            angle: -90,
+                            position: "insideLeft",
+                            offset: 15,
+                            fontSize: 11,
+                            fill: "oklch(0.50 0.03 240)",
+                          }}
                           tick={{ fontSize: 10 }}
                         />
                         <Tooltip content={<CustomTooltip />} />
-                        <ReferenceLine x={0} stroke="oklch(0.50 0.20 240)" strokeDasharray="6 3" strokeWidth={1.5} />
-                        <ReferenceLine y={0.5} stroke="oklch(0.55 0.22 25)" strokeDasharray="4 4" strokeWidth={1} />
+                        {/* Functional cutoff at 0.20 logMAR */}
+                        <ReferenceLine
+                          y={0.20}
+                          stroke="#ef4444"
+                          strokeDasharray="6 3"
+                          strokeWidth={1.5}
+                          label={{ value: "0.20 logMAR", position: "insideTopRight", fontSize: 9, fill: "#ef4444" }}
+                        />
+                        {/* Plano (0 D) reference */}
+                        <ReferenceLine
+                          x={0}
+                          stroke="#3b82f6"
+                          strokeDasharray="4 2"
+                          strokeWidth={1.5}
+                        />
                         <Line
                           type="monotone"
                           dataKey="mean"

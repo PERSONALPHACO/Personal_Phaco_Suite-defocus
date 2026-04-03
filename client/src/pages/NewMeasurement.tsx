@@ -28,8 +28,8 @@ import { useLocation, useParams } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import IOLCascadeSelect from "@/components/IOLCascadeSelect";
 
-// Standard defocus curve diopter values (from +1.0 to -4.0 per protocol)
-const DEFAULT_DIOPTERS = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5, -4];
+// Standard defocus curve diopter values (from +1.0 to -3.5 per clinical form)
+const DEFAULT_DIOPTERS = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5];
 
 type AVInputMode = "decimal" | "snellen" | "logmar";
 
@@ -264,7 +264,7 @@ export default function NewMeasurement() {
                     Pontos de Acuidade Visual
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Insira a AV para cada valor de Defocus (+1.0 a −4.0 D)
+                    Insira a AV para cada valor de Defocus (+1.0 a −3.5 D)
                   </p>
                 </div>
                 <Button
@@ -418,19 +418,24 @@ export default function NewMeasurement() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 5, right: 15, left: 10, bottom: 22 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
+                        {/*
+                          X: +1.0 at LEFT → -3.5 at RIGHT (positives first)
+                          Y: -0.1 at TOP (best) → 0.6 at BOTTOM (worst)
+                        */}
                         <XAxis
                           dataKey="diopter"
                           type="number"
-                          domain={[1.0, -4.0]}
-                          ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5, -4]}
-                          tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
+                          domain={[-3.5, 1.0]}
+                          reversed={true}
+                          ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5]}
+                          tickFormatter={(v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}`}
                           label={{ value: "Defocus (D)", position: "insideBottom", offset: -12, fontSize: 10 }}
                           tick={{ fontSize: 9 }}
                         />
                         <YAxis
-                          domain={[-0.1, 1.0]}
-                          reversed={true}
-                          ticks={[-0.1, 0, 0.2, 0.3, 0.5, 0.7, 1.0]}
+                          domain={[0.6, -0.1]}
+                          reversed={false}
+                          ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                           tickFormatter={(v) => v.toFixed(1)}
                           label={{ value: "logMAR", angle: -90, position: "insideLeft", offset: 5, fontSize: 10 }}
                           tick={{ fontSize: 9 }}

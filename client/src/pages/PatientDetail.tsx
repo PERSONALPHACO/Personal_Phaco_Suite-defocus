@@ -58,6 +58,7 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
 } from "recharts";
 
 const CHART_COLORS = [
@@ -564,10 +565,12 @@ export default function PatientDetail() {
 // ─── Defocus Chart Component ─────────────────────────────────────────────────
 
 // Defocus zone background bands
+// X axis: +1.0 (left) → -3.5 (right), positives first then negatives
+// Y axis: logMAR with -0.1 at TOP (best vision) and 0.6 at BOTTOM (worst)
 const VISION_ZONES = [
-  { x1: 1.0,  x2: -0.5,  fill: "#dbeafe", label: "Longe" },       // near 0 D
-  { x1: -0.5, x2: -1.75, fill: "#dcfce7", label: "Interm." },     // -0.5 to -1.75 D
-  { x1: -1.75,x2: -4.0,  fill: "#fef9c3", label: "Perto" },       // -1.75 to -4.0 D
+  { x1: 1.0,  x2: -0.5,  fill: "#dbeafe", label: "Longe" },
+  { x1: -0.5, x2: -1.75, fill: "#dcfce7", label: "Interm." },
+  { x1: -1.75,x2: -3.5,  fill: "#fef9c3", label: "Perto" },
 ];
 
 function DefocusChart({ patientId, measurements }: { patientId: number; measurements: any[] }) {
@@ -605,7 +608,8 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
     });
 
     // Generate 100 dense interpolated points per selected measurement
-    const X_START = 1.0, X_END = -4.0;
+    // X goes from +1.0 to -3.5 (positives first, then negatives)
+    const X_START = 1.0, X_END = -3.5;
     const N = 100;
     const step = (X_END - X_START) / (N - 1);
 
@@ -619,13 +623,16 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
     // Determine x range from actual data
     const allPts = selectedIds.flatMap(id => byId[id] ?? []);
     if (allPts.length === 0) return [];
+    // dataXMax is the leftmost point (most positive), dataXMin is the rightmost (most negative)
     const dataXMin = Math.min(...allPts.map(p=>p.x));
     const dataXMax = Math.max(...allPts.map(p=>p.x));
 
     const rows: Record<string, any>[] = [];
     for (let i = 0; i < N; i++) {
       const x = X_START + step * i;
-      if (x < dataXMax - 0.05 || x > dataXMin + 0.05) continue; // only within data range
+      // X_START=1.0 > X_END=-3.5, so step is negative; x decreases each iteration
+      // dataXMax = most positive diopter, dataXMin = most negative diopter
+      if (x > dataXMax + 0.05 || x < dataXMin - 0.05) continue; // only within data range
       const row: Record<string, any> = { diopter: parseFloat(x.toFixed(3)) };
       selectedIds.forEach((id) => {
         const fn = splines[id];
@@ -691,30 +698,40 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
                 <linearGradient id="zoneNear" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fef9c3" stopOpacity={0.5}/><stop offset="100%" stopColor="#fef9c3" stopOpacity={0.5}/></linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
+              {/*
+                AXIS ORIENTATION (matches clinical examples):
+                X: +1.0 at LEFT → -3.5 at RIGHT  (positives first, then negatives)
+                   Recharts: domain=[-3.5, 1.0] + reversed=true renders +1.0 on left
+                Y: -0.1 at TOP (best vision) → 0.6 at BOTTOM (worst vision)
+                   Recharts: domain=[0.6, -0.1] without reversed renders -0.1 on top
+              */}
               <XAxis
                 dataKey="diopter"
                 type="number"
-                domain={[1.0, -4.0]}
-                reversed={false}
-                ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5, -4]}
-                tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
+                domain={[-3.5, 1.0]}
+                reversed={true}
+                ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5]}
+                tickFormatter={(v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}`}
                 label={{ value: "Defocus (D)", position: "insideBottom", offset: -12, fontSize: 11 }}
                 tick={{ fontSize: 10 }}
               />
               <YAxis
-                domain={[-0.1, 1.0]}
-                reversed={true}
-                ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
+                domain={[0.6, -0.1]}
+                reversed={false}
+                ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                 tickFormatter={(v) => v.toFixed(1)}
-                label={{ value: "logMAR", angle: -90, position: "insideLeft", offset: 5, fontSize: 11 }}
+                label={{ value: "Acuidade Visual (logMAR)", angle: -90, position: "insideLeft", offset: 5, fontSize: 11 }}
                 tick={{ fontSize: 10 }}
               />
               <Tooltip content={<DefocusTooltip />} />
               {/* Zone backgrounds as reference areas */}
-              <ReferenceLine x={1.0}   stroke="transparent" />
+              {/* Vision zone background bands */}
+              <ReferenceArea x1={1.0} x2={-0.5}  fill="#dbeafe" fillOpacity={0.35} />
+              <ReferenceArea x1={-0.5} x2={-1.75} fill="#dcfce7" fillOpacity={0.35} />
+              <ReferenceArea x1={-1.75} x2={-3.5}  fill="#fef9c3" fillOpacity={0.35} />
+              {/* Zone boundary lines */}
               <ReferenceLine x={-0.5}  stroke="#93c5fd" strokeDasharray="2 2" strokeWidth={1} />
               <ReferenceLine x={-1.75} stroke="#86efac" strokeDasharray="2 2" strokeWidth={1} />
-              <ReferenceLine x={-4.0}  stroke="transparent" />
               {/* Functional vision cutoff line at 0.20 logMAR */}
               <ReferenceLine
                 y={0.20}

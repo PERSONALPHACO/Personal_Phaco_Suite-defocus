@@ -53,29 +53,37 @@ const IOL_TYPE_COLORS: Record<string, string> = {
   toric: "bg-amber-100 text-amber-700 border-amber-200",
 };
 
-// Typical defocus curve profiles for demo/reference
+// Typical defocus curve profiles in logMAR (clinical standard)
+// logMAR = -log10(decimal): 0.00 = 20/20, 0.10 = 20/25, 0.20 = 20/32, 0.30 = 20/40, 0.60 = 20/80
 const REFERENCE_CURVES: Record<string, Record<string, number>> = {
-  trifocal: { "-5": 0.05, "-4.5": 0.08, "-4": 0.12, "-3.5": 0.18, "-3": 0.35, "-2.5": 0.55, "-2": 0.85, "-1.5": 0.75, "-1": 0.60, "-0.5": 0.85, "0": 1.0, "0.5": 0.75, "1": 0.40 },
-  edof: { "-5": 0.05, "-4.5": 0.07, "-4": 0.10, "-3.5": 0.15, "-3": 0.28, "-2.5": 0.50, "-2": 0.70, "-1.5": 0.80, "-1": 0.85, "-0.5": 0.92, "0": 1.0, "0.5": 0.80, "1": 0.55 },
-  monofocal: { "-5": 0.04, "-4.5": 0.05, "-4": 0.07, "-3.5": 0.10, "-3": 0.15, "-2.5": 0.22, "-2": 0.35, "-1.5": 0.50, "-1": 0.70, "-0.5": 0.90, "0": 1.0, "0.5": 0.85, "1": 0.60 },
+  //          +1.0   +0.5   0.0   -0.5   -1.0   -1.5   -2.0   -2.5   -3.0   -3.5
+  trifocal:  { "1": 0.40, "0.5": 0.10, "0": 0.00, "-0.5": 0.10, "-1": 0.22, "-1.5": 0.10, "-2": 0.05, "-2.5": 0.22, "-3": 0.40, "-3.5": 0.52 },
+  edof:      { "1": 0.30, "0.5": 0.08, "0": 0.00, "-0.5": 0.05, "-1": 0.10, "-1.5": 0.10, "-2": 0.15, "-2.5": 0.25, "-3": 0.40, "-3.5": 0.55 },
+  monofocal: { "1": 0.22, "0.5": 0.05, "0": 0.00, "-0.5": 0.10, "-1": 0.22, "-1.5": 0.40, "-2": 0.52, "-2.5": 0.60, "-3": 0.60, "-3.5": 0.60 },
+  bifocal:   { "1": 0.40, "0.5": 0.10, "0": 0.00, "-0.5": 0.10, "-1": 0.30, "-1.5": 0.40, "-2": 0.15, "-2.5": 0.10, "-3": 0.30, "-3.5": 0.50 },
+  toric:     { "1": 0.22, "0.5": 0.05, "0": 0.00, "-0.5": 0.10, "-1": 0.22, "-1.5": 0.40, "-2": 0.52, "-2.5": 0.60, "-3": 0.60, "-3.5": 0.60 },
 };
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-card border rounded-xl shadow-xl p-3 text-xs min-w-[160px]">
+    <div className="bg-card border rounded-xl shadow-xl p-3 text-xs min-w-[180px]">
       <p className="font-bold text-foreground mb-2 pb-1.5 border-b">
-        {Number(label) > 0 ? "+" : ""}{label} D
+        {Number(label) > 0 ? "+" : ""}{Number(label).toFixed(2)} D
       </p>
-      {payload.map((entry: any) => (
-        <div key={entry.dataKey} className="flex items-center justify-between gap-3 py-0.5">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: entry.color }} />
-            <span className="text-muted-foreground truncate max-w-[100px]">{entry.name}</span>
+      {payload.map((entry: any) => {
+        const lm = Number(entry.value);
+        const snellen = `20/${Math.round(20 * Math.pow(10, lm))}`;
+        return (
+          <div key={entry.dataKey} className="flex items-center justify-between gap-3 py-0.5">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: entry.color }} />
+              <span className="text-muted-foreground truncate max-w-[100px]">{entry.name}</span>
+            </div>
+            <span className="font-bold text-foreground">{lm.toFixed(2)} ({snellen})</span>
           </div>
-          <span className="font-bold text-foreground">{Number(entry.value).toFixed(2)}</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -108,8 +116,8 @@ export default function Compare() {
 
   const selectedIols = allIols.filter((iol) => selectedIolIds.includes(iol.id));
 
-  // Build chart data with reference curves for selected IOLs
-  const diopters = [-5, -4.5, -4, -3.5, -3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1];
+  // Build chart data with reference curves for selected IOLs (clinical range +1.0 to -3.5 D)
+  const diopters = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5];
 
   const chartData = diopters.map((d) => {
     const row: Record<string, any> = { diopter: d };
@@ -299,14 +307,19 @@ export default function Compare() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 25 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
+                        {/*
+                          X: +1.0 at LEFT → -3.5 at RIGHT (clinical standard)
+                          Y: -0.1 at TOP (best) → 0.6 at BOTTOM (worst)
+                        */}
                         <XAxis
                           dataKey="diopter"
                           type="number"
-                          domain={[-5, 1.5]}
-                          tickCount={9}
-                          tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
+                          domain={[-3.5, 1.0]}
+                          reversed={true}
+                          ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5]}
+                          tickFormatter={(v) => `${v > 0 ? "+" : ""}${Number(v).toFixed(2)}`}
                           label={{
-                            value: "Defocus (Dioptrias)",
+                            value: "Defocus (D)",
                             position: "insideBottom",
                             offset: -12,
                             fontSize: 12,
@@ -315,11 +328,12 @@ export default function Compare() {
                           tick={{ fontSize: 11 }}
                         />
                         <YAxis
-                          domain={[0, 1.1]}
-                          tickCount={7}
+                          domain={[0.6, -0.1]}
+                          reversed={false}
+                          ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
                           tickFormatter={(v) => v.toFixed(1)}
                           label={{
-                            value: "Acuidade Visual (decimal)",
+                            value: "logMAR",
                             angle: -90,
                             position: "insideLeft",
                             offset: 15,
@@ -335,19 +349,24 @@ export default function Compare() {
                             <span className="text-foreground">{value}</span>
                           )}
                         />
+                        {/* Vision zone backgrounds */}
+                        <ReferenceLine x={-0.5}  stroke="#93c5fd" strokeDasharray="2 2" strokeWidth={1} />
+                        <ReferenceLine x={-1.75} stroke="#86efac" strokeDasharray="2 2" strokeWidth={1} />
+                        {/* Functional cutoff at 0.20 logMAR */}
                         <ReferenceLine
-                          x={0}
-                          stroke="oklch(0.50 0.20 240)"
+                          y={0.20}
+                          stroke="#ef4444"
                           strokeDasharray="6 3"
                           strokeWidth={1.5}
-                          label={{ value: "Emmetropia", position: "top", fontSize: 10, fill: "oklch(0.50 0.20 240)" }}
+                          label={{ value: "0.20 logMAR (20/32)", position: "insideTopRight", fontSize: 9, fill: "#ef4444" }}
                         />
+                        {/* Plano (0 D) reference */}
                         <ReferenceLine
-                          y={0.5}
-                          stroke="oklch(0.55 0.22 25)"
-                          strokeDasharray="4 4"
-                          strokeWidth={1}
-                          label={{ value: "20/40", position: "right", fontSize: 9, fill: "oklch(0.55 0.22 25)" }}
+                          x={0}
+                          stroke="#3b82f6"
+                          strokeDasharray="4 2"
+                          strokeWidth={1.5}
+                          label={{ value: "Plano", position: "top", fontSize: 9, fill: "#3b82f6" }}
                         />
                         {selectedIols.map((iol, idx) => (
                           <Line
