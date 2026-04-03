@@ -92,3 +92,7 @@
 - [x] Corrigir bug: iniciais mostrando "?" nos cards de IOL (problema no mapeamento de nomes do banco)
 - [x] Pesquisar cores oficiais de marca de cada fabricante (Zeiss, Alcon, J&J, Hoya, Rayner, Bausch+Lomb, Hanita, Teleon, PhysIOL, Medicontour, Biotech, Leedsay)
 - [x] Aplicar cores corretas e iniciais corretas para cada fabricante
+
+## Bug Fix - manufacturerName null
+- [x] Investigar por que algumas IOLs chegam com manufacturerName null no frontend
+- [x] Corrigir JOIN ou manufacturer_id nas IOLs sem fabricante associado
