@@ -139,3 +139,8 @@
 - [x] Eixo Y: -0,1 no TOPO e 0,6 na BASE (interseção com eixo X) em todos os gráficos
 - [x] Recharts: usar reversed={true} com domain={[-0.1, 0.6]} para orientação correta
 - [x] Aplicar em PatientDetail, IOLDetailSheet, Compare e NewMeasurement
+
+## Bug Fix - Boxes de Acuidade Visual no Formulário
+- [x] Boxes devem exibir o valor no formato selecionado (Decimal, Snellen 20/x, logMAR)
+- [x] Implementar funções de conversão: decimal→Snellen, decimal→logMAR para exibição
+- [x] Valor armazenado internamente sempre em decimal; exibição convertida conforme formato

@@ -39,6 +39,40 @@ type MeasurementPoint = {
 };
 
 // ─── VA conversion helpers ────────────────────────────────────────────────────
+
+// Lookup table from the clinical reference (logMAR → Snellen 20/x)
+const LOGMAR_TO_SNELLEN: [number, string][] = [
+  [-0.3, "20/10"], [-0.2, "20/13"], [-0.1, "20/16"],
+  [0.0, "20/20"], [0.1, "20/25"], [0.2, "20/32"],
+  [0.3, "20/40"], [0.4, "20/50"], [0.5, "20/63"],
+  [0.6, "20/80"], [0.7, "20/100"], [0.8, "20/126"],
+  [0.9, "20/159"], [1.0, "20/200"], [1.1, "20/252"],
+  [1.2, "20/317"], [1.3, "20/400"],
+];
+
+// Convert a decimal VA value to display string for the given mode
+function decimalToDisplay(decimal: number, mode: AVInputMode): string {
+  if (decimal <= 0) return "";
+  if (mode === "decimal") {
+    return String(parseFloat(decimal.toFixed(2)));
+  }
+  if (mode === "logmar") {
+    return parseFloat((-Math.log10(decimal)).toFixed(2)).toString();
+  }
+  if (mode === "snellen") {
+    // Find closest logMAR value in table
+    const logmar = -Math.log10(decimal);
+    let closest = LOGMAR_TO_SNELLEN[0];
+    let minDiff = Math.abs(logmar - LOGMAR_TO_SNELLEN[0][0]);
+    for (const entry of LOGMAR_TO_SNELLEN) {
+      const diff = Math.abs(logmar - entry[0]);
+      if (diff < minDiff) { minDiff = diff; closest = entry; }
+    }
+    return closest[1];
+  }
+  return "";
+}
+
 function parseVAInput(value: string, mode: AVInputMode): number | null {
   if (!value.trim()) return null;
   if (mode === "decimal") {
@@ -84,6 +118,19 @@ export default function NewMeasurement() {
   const [patientIolId, setPatientIolId] = useState<string>("none");
   const [notes, setNotes] = useState("");
   const [avMode, setAvMode] = useState<AVInputMode>("decimal");
+
+  // When mode changes, convert existing values to the new format
+  const handleModeChange = (newMode: AVInputMode) => {
+    setPoints((prev) =>
+      prev.map((p) => {
+        if (!p.visualAcuity.trim()) return p;
+        const decimal = parseVAInput(p.visualAcuity, avMode);
+        if (decimal === null || decimal <= 0) return { ...p, visualAcuity: "" };
+        return { ...p, visualAcuity: decimalToDisplay(decimal, newMode) };
+      })
+    );
+    setAvMode(newMode);
+  };
   const [points, setPoints] = useState<MeasurementPoint[]>(
     DEFAULT_DIOPTERS.map((d) => ({ diopter: d, visualAcuity: "" }))
   );
@@ -285,7 +332,7 @@ export default function NewMeasurement() {
                     {(["decimal", "snellen", "logmar"] as AVInputMode[]).map((mode) => (
                       <button
                         key={mode}
-                        onClick={() => setAvMode(mode)}
+                        onClick={() => handleModeChange(mode)}
                         className={`px-3 py-1 text-xs font-medium transition-colors ${
                           avMode === mode
                             ? "bg-primary text-primary-foreground"
@@ -322,10 +369,8 @@ export default function NewMeasurement() {
                           {point.diopter > 0 ? `+${point.diopter}` : point.diopter}D
                         </div>
                         <Input
-                          type="number"
-                          min="0"
-                          max="2.0"
-                          step="0.05"
+                          type="text"
+                          inputMode={avMode === "snellen" ? "text" : "decimal"}
                           value={point.visualAcuity}
                           onChange={(e) => updatePoint(idx, e.target.value)}
                           className="pl-12 text-right font-mono text-sm"
@@ -360,12 +405,11 @@ export default function NewMeasurement() {
                       className="h-6 text-xs"
                       onClick={() => {
                         setPoints((prev) =>
-                          prev.map((p) => ({
-                            ...p,
-                            visualAcuity: (preset.values as any)[p.diopter.toString()] !== undefined
-                              ? String((preset.values as any)[p.diopter.toString()])
-                              : p.visualAcuity,
-                          }))
+                          prev.map((p) => {
+                            const decimalVal = (preset.values as any)[p.diopter.toString()];
+                            if (decimalVal === undefined) return p;
+                            return { ...p, visualAcuity: decimalToDisplay(decimalVal, avMode) };
+                          })
                         );
                         toast.info(`Valores de exemplo "${preset.label}" carregados`);
                       }}
