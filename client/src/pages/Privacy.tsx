@@ -30,7 +30,7 @@ export default function Privacy() {
         <Card className="border bg-primary/5 border-primary/20">
           <CardContent className="p-5">
             <p className="text-sm text-foreground leading-relaxed">
-              O <strong>DefocusApp</strong> é uma plataforma destinada a oftalmologistas para análise de performance de lentes intraoculares (IOLs) e plotagem de curvas de defoque. Esta Política de Privacidade descreve como coletamos, utilizamos, armazenamos e protegemos os dados pessoais de pacientes e profissionais de saúde, em conformidade com a <strong>Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018)</strong> e o <strong>Regulamento Geral de Proteção de Dados da União Europeia (GDPR — Regulamento (UE) 2016/679)</strong>.
+              O <strong>DefocusApp</strong> é uma plataforma destinada a oftalmologistas para análise de performance de lentes intraoculares (IOLs) e plotagem de curvas Defocus. Esta Política de Privacidade descreve como coletamos, utilizamos, armazenamos e protegemos os dados pessoais de pacientes e profissionais de saúde, em conformidade com a <strong>Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018)</strong> e o <strong>Regulamento Geral de Proteção de Dados da União Europeia (GDPR — Regulamento (UE) 2016/679)</strong>.
             </p>
           </CardContent>
         </Card>
@@ -55,7 +55,7 @@ export default function Privacy() {
                 {[
                   ["Dados do Médico", "Nome, e-mail, CRM (via autenticação)", "Autenticação e controle de acesso"],
                   ["Dados do Paciente", "Nome, CPF, data de nascimento, telefone, e-mail", "Identificação e prontuário clínico"],
-                  ["Dados Clínicos", "Acuidade visual, IOL implantada, alvo refrativo, data de cirurgia", "Análise de performance e curvas de defoque"],
+                  ["Dados Clínicos", "Acuidade visual, IOL implantada, alvo refrativo, data de cirurgia", "Análise de performance e curvas Defocus"],
                   ["Dados Agregados", "Métricas anonimizadas de performance por tipo de IOL", "Pesquisa e relatórios para fabricantes"],
                 ].map(([cat, data, purpose]) => (
                   <tr key={cat} className="border-b hover:bg-muted/20">

@@ -128,7 +128,7 @@ export default function Compare() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Comparação de IOLs</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Compare curvas de defoque de múltiplas lentes intraoculares
+              Compare curvas Defocus de múltiplas lentes intraoculares
             </p>
           </div>
           <Button
@@ -282,7 +282,7 @@ export default function Compare() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Activity className="w-4 h-4 text-primary" />
-                  Curvas de Defoque Comparativas
+                  curvas Defocus Comparativas
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -291,7 +291,7 @@ export default function Compare() {
                     <GitCompare className="w-14 h-14 text-muted-foreground mb-4" />
                     <p className="font-medium text-foreground">Nenhuma IOL selecionada</p>
                     <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                      Selecione IOLs no painel à esquerda para comparar suas curvas de defoque
+                      Selecione IOLs no painel à esquerda para comparar suas curvas Defocus
                     </p>
                   </div>
                 ) : (
@@ -306,7 +306,7 @@ export default function Compare() {
                           tickCount={9}
                           tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
                           label={{
-                            value: "Defoque (Dioptrias)",
+                            value: "Defocus (Dioptrias)",
                             position: "insideBottom",
                             offset: -12,
                             fontSize: 12,

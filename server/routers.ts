@@ -3,6 +3,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { generateDefocusCurve, computeFunctionalArea } from "./defocusCurve";
 import {
   getAllManufacturers,
   createManufacturer,
@@ -128,7 +129,7 @@ export const appRouter = router({
         return getIOLComparisonData(input.iolIds);
       }),
 
-    // Retorna todas as curvas reais de defoque associadas a uma IOL específica
+    // Retorna todas as curvas reais de Defocus associadas a uma IOL específica
     curves: publicProcedure
       .input(z.object({ iolId: z.number() }))
       .query(async ({ input }) => {
@@ -253,6 +254,73 @@ export const appRouter = router({
       .input(z.object({ measurementIds: z.array(z.number()) }))
       .query(async ({ input }) => {
         return getPointsForMeasurements(input.measurementIds);
+      }),
+
+    /**
+     * Retorna a curva Defocus interpolada (spline monótona) em logMAR
+     * para uma medição específica. Inclui métricas de visão funcional.
+     */
+    defocusCurve: protectedProcedure
+      .input(z.object({
+        measurementId: z.number(),
+        nPoints: z.number().min(20).max(500).default(100),
+      }))
+      .query(async ({ input }) => {
+        const rawPoints = await getMeasurementPoints(input.measurementId);
+        const normalized = rawPoints.map((p) => ({
+          diopter: parseFloat(p.diopter as any),
+          visualAcuity: parseFloat(p.visualAcuity as any),
+        }));
+        const curve = generateDefocusCurve(normalized, input.nPoints);
+        const functionalArea = computeFunctionalArea(curve);
+        const peakPoint = curve.reduce(
+          (best, p) => (p.logmar < best.logmar ? p : best),
+          curve[0] ?? { logmar: 3, diopter: 0, decimal: 0, snellen: "CF" }
+        );
+        return {
+          measurementId: input.measurementId,
+          curve,
+          rawPoints: normalized,
+          functionalArea,
+          peakLogMAR: peakPoint.logmar,
+          peakDiopter: peakPoint.diopter,
+          peakSnellen: peakPoint.snellen,
+        };
+      }),
+
+    /**
+     * Retorna curvas Defocus interpoladas para múltiplas medições (batch)
+     */
+    defocusCurveBatch: protectedProcedure
+      .input(z.object({
+        measurementIds: z.array(z.number()),
+        nPoints: z.number().min(20).max(500).default(100),
+      }))
+      .query(async ({ input }) => {
+        const results = await Promise.all(
+          input.measurementIds.map(async (id) => {
+            const rawPoints = await getMeasurementPoints(id);
+            const normalized = rawPoints.map((p) => ({
+              diopter: parseFloat(p.diopter as any),
+              visualAcuity: parseFloat(p.visualAcuity as any),
+            }));
+            const curve = generateDefocusCurve(normalized, input.nPoints);
+            const functionalArea = computeFunctionalArea(curve);
+            const peakPoint = curve.length > 0
+              ? curve.reduce((best, p) => (p.logmar < best.logmar ? p : best), curve[0])
+              : { logmar: 3, diopter: 0, decimal: 0, snellen: "CF" };
+            return {
+              measurementId: id,
+              curve,
+              rawPoints: normalized,
+              functionalArea,
+              peakLogMAR: peakPoint.logmar,
+              peakDiopter: peakPoint.diopter,
+              peakSnellen: peakPoint.snellen,
+            };
+          })
+        );
+        return results;
       }),
 
     create: protectedProcedure

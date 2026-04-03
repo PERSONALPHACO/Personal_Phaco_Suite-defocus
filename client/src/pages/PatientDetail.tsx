@@ -82,19 +82,57 @@ type PatientIOLFormData = {
   notes: string;
 };
 
-// Custom tooltip for defocus chart
+// ─── logMAR helpers (client-side, mirrors server/defocusCurve.ts) ─────────────
+function decimalToLogMAR(d: number): number {
+  if (d <= 0) return 3.0;
+  return -Math.log10(d);
+}
+function logMARToSnellen(l: number): string {
+  return `20/${Math.round(20 * Math.pow(10, l))}`;
+}
+
+// Monotone cubic spline (Fritsch–Carlson) — client-side for live preview
+function monotonicSpline(pts: {x:number;y:number}[]): (x:number)=>number {
+  const n = pts.length;
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const delta = xs.slice(0,-1).map((_,i)=>(ys[i+1]-ys[i])/(xs[i+1]-xs[i]));
+  const m: number[] = new Array(n);
+  m[0]=delta[0]; m[n-1]=delta[n-2];
+  for(let i=1;i<n-1;i++) m[i]=(delta[i-1]+delta[i])/2;
+  for(let i=0;i<n-1;i++){
+    if(Math.abs(delta[i])<1e-12){m[i]=0;m[i+1]=0;}
+    else{const a=m[i]/delta[i],b=m[i+1]/delta[i],t=a*a+b*b;
+      if(t>9){const s=3/Math.sqrt(t);m[i]=s*a*delta[i];m[i+1]=s*b*delta[i];}}
+  }
+  return (x:number)=>{
+    if(x<=xs[0])return ys[0]; if(x>=xs[n-1])return ys[n-1];
+    let lo=0,hi=n-2;
+    while(lo<hi){const mid=Math.floor((lo+hi)/2);if(xs[mid]<x)lo=mid+1;else hi=mid;}
+    const i=Math.max(0,lo-1),h=xs[i+1]-xs[i],t=(x-xs[i])/h,t2=t*t,t3=t2*t;
+    return (2*t3-3*t2+1)*ys[i]+(t3-2*t2+t)*h*m[i]+(-2*t3+3*t2)*ys[i+1]+(t3-t2)*h*m[i+1];
+  };
+}
+
+// Custom tooltip for Defocus chart
 function DefocusTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
+  const d = Number(label);
+  const dLabel = `${d > 0 ? "+" : ""}${d.toFixed(2)} D`;
   return (
-    <div className="bg-card border rounded-lg shadow-lg p-3 text-xs">
-      <p className="font-semibold text-foreground mb-1.5">{label} D</p>
-      {payload.map((entry: any) => (
-        <div key={entry.dataKey} className="flex items-center gap-2 py-0.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: entry.color }} />
-          <span className="text-muted-foreground">{entry.name}:</span>
-          <span className="font-semibold text-foreground">{Number(entry.value).toFixed(2)}</span>
-        </div>
-      ))}
+    <div className="bg-card border rounded-lg shadow-lg p-3 text-xs min-w-[160px]">
+      <p className="font-semibold text-foreground mb-1.5">{dLabel}</p>
+      {payload.map((entry: any) => {
+        const logmar = Number(entry.value);
+        const snellen = logMARToSnellen(logmar);
+        return (
+          <div key={entry.dataKey} className="flex items-center gap-2 py-0.5">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: entry.color }} />
+            <span className="text-muted-foreground truncate max-w-[80px]">{entry.name}:</span>
+            <span className="font-semibold text-foreground">{logmar.toFixed(2)}</span>
+            <span className="text-muted-foreground">({snellen})</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -406,7 +444,7 @@ export default function PatientDetail() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <Activity className="w-4 h-4 text-primary" />
-                    Curva de Defoque
+                    curva Defocus
                   </CardTitle>
                   {measurements.length > 0 && (
                     <p className="text-xs text-muted-foreground">
@@ -421,7 +459,7 @@ export default function PatientDetail() {
                     <Activity className="w-10 h-10 text-muted-foreground mb-3" />
                     <p className="text-sm font-medium text-foreground">Nenhuma medição registrada</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Adicione medições para visualizar a curva de defoque
+                      Adicione medições para visualizar a curva Defocus
                     </p>
                     <Button
                       size="sm"
@@ -525,6 +563,13 @@ export default function PatientDetail() {
 
 // ─── Defocus Chart Component ─────────────────────────────────────────────────
 
+// Defocus zone background bands
+const VISION_ZONES = [
+  { x1: 1.0,  x2: -0.5,  fill: "#dbeafe", label: "Longe" },       // near 0 D
+  { x1: -0.5, x2: -1.75, fill: "#dcfce7", label: "Interm." },     // -0.5 to -1.75 D
+  { x1: -1.75,x2: -4.0,  fill: "#fef9c3", label: "Perto" },       // -1.75 to -4.0 D
+];
+
 function DefocusChart({ patientId, measurements }: { patientId: number; measurements: any[] }) {
   // All hooks MUST be called unconditionally at the top level
   const allIds = useMemo(() => measurements.map((m) => m.id), [measurements]);
@@ -533,7 +578,7 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
     measurements.slice(0, 3).map((m) => m.id)
   );
 
-  // Single batch query — stable reference via useMemo, no hooks-in-map violation
+  // Batch raw points — single stable query
   const { data: batchPoints } = trpc.measurements.pointsBatch.useQuery(
     { measurementIds: allIds },
     { enabled: allIds.length > 0 }
@@ -545,30 +590,53 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
     );
   };
 
-  // Build unified chart data from batch result
-  const { chartData, seriesData } = useMemo(() => {
-    const seriesData: Record<number, Record<number, number>> = {};
-    const allDiopterValues = new Set<number>();
+  // Build interpolated spline data in logMAR for each selected measurement
+  const chartData = useMemo(() => {
+    if (!batchPoints) return [];
 
-    (batchPoints ?? []).forEach((pt) => {
+    // Group raw points by measurement id
+    const byId: Record<number, {x:number;y:number}[]> = {};
+    batchPoints.forEach((pt) => {
       const id = pt.measurementId;
       const d = parseFloat(pt.diopter as any);
       const va = parseFloat(pt.visualAcuity as any);
-      if (!seriesData[id]) seriesData[id] = {};
-      seriesData[id][d] = va;
-      allDiopterValues.add(d);
+      if (!byId[id]) byId[id] = [];
+      byId[id].push({ x: d, y: decimalToLogMAR(va) });
     });
 
-    const sortedDiopters = Array.from(allDiopterValues).sort((a, b) => a - b);
-    const chartData = sortedDiopters.map((d) => {
-      const row: Record<string, any> = { diopter: d };
+    // Generate 100 dense interpolated points per selected measurement
+    const X_START = 1.0, X_END = -4.0;
+    const N = 100;
+    const step = (X_END - X_START) / (N - 1);
+
+    // Build spline for each selected id
+    const splines: Record<number, ((x:number)=>number) | null> = {};
+    selectedIds.forEach((id) => {
+      const pts = (byId[id] ?? []).sort((a,b)=>a.x-b.x);
+      splines[id] = pts.length >= 2 ? monotonicSpline(pts) : null;
+    });
+
+    // Determine x range from actual data
+    const allPts = selectedIds.flatMap(id => byId[id] ?? []);
+    if (allPts.length === 0) return [];
+    const dataXMin = Math.min(...allPts.map(p=>p.x));
+    const dataXMax = Math.max(...allPts.map(p=>p.x));
+
+    const rows: Record<string, any>[] = [];
+    for (let i = 0; i < N; i++) {
+      const x = X_START + step * i;
+      if (x < dataXMax - 0.05 || x > dataXMin + 0.05) continue; // only within data range
+      const row: Record<string, any> = { diopter: parseFloat(x.toFixed(3)) };
       selectedIds.forEach((id) => {
-        if (seriesData[id]) row[`m_${id}`] = seriesData[id][d] ?? null;
+        const fn = splines[id];
+        if (fn) {
+          const logmar = Math.max(-0.3, Math.min(3.0, fn(x)));
+          row[`m_${id}`] = parseFloat(logmar.toFixed(3));
+        }
       });
-      return row;
-    });
-
-    return { chartData, seriesData };
+      rows.push(row);
+    }
+    return rows;
   }, [batchPoints, selectedIds]);
 
   const getMeasurementLabel = (id: number) => {
@@ -595,10 +663,7 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
               }`}
               style={isSelected ? { background: color } : {}}
             >
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: isSelected ? "white" : color }}
-              />
+              <div className="w-2 h-2 rounded-full" style={{ background: isSelected ? "white" : color }} />
               {format(new Date(m.measurementDate), "dd/MM/yy")} · {m.eye}
               {m.iolModel && ` · ${m.iolModel}`}
             </button>
@@ -606,31 +671,61 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
         })}
       </div>
 
+      {/* Zone legend */}
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm" style={{background:"#dbeafe"}} />Longe</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm" style={{background:"#dcfce7"}} />Intermédio</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm" style={{background:"#fef9c3"}} />Perto</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-2 border-dashed border-red-400" />Visão funcional (0.20 logMAR)</span>
+      </div>
+
       {/* Chart */}
       {selectedIds.length > 0 && chartData.length > 0 ? (
-        <div className="h-72">
+        <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 24 }}>
+              {/* Vision zone backgrounds */}
+              <defs>
+                <linearGradient id="zoneFar" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#dbeafe" stopOpacity={0.5}/><stop offset="100%" stopColor="#dbeafe" stopOpacity={0.5}/></linearGradient>
+                <linearGradient id="zoneMid" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#dcfce7" stopOpacity={0.5}/><stop offset="100%" stopColor="#dcfce7" stopOpacity={0.5}/></linearGradient>
+                <linearGradient id="zoneNear" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fef9c3" stopOpacity={0.5}/><stop offset="100%" stopColor="#fef9c3" stopOpacity={0.5}/></linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
               <XAxis
                 dataKey="diopter"
                 type="number"
-                domain={[-5, 3]}
-                tickCount={9}
+                domain={[1.0, -4.0]}
+                reversed={false}
+                ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5, -4]}
                 tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
-                label={{ value: "Defoque (D)", position: "insideBottom", offset: -2, fontSize: 11 }}
-                tick={{ fontSize: 11 }}
+                label={{ value: "Defocus (D)", position: "insideBottom", offset: -12, fontSize: 11 }}
+                tick={{ fontSize: 10 }}
               />
               <YAxis
-                domain={[0, 1.0]}
-                tickCount={6}
+                domain={[-0.1, 1.0]}
+                reversed={true}
+                ticks={[-0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
                 tickFormatter={(v) => v.toFixed(1)}
-                label={{ value: "Acuidade Visual", angle: -90, position: "insideLeft", offset: 10, fontSize: 11 }}
-                tick={{ fontSize: 11 }}
+                label={{ value: "logMAR", angle: -90, position: "insideLeft", offset: 5, fontSize: 11 }}
+                tick={{ fontSize: 10 }}
               />
               <Tooltip content={<DefocusTooltip />} />
-              <ReferenceLine x={0} stroke="oklch(0.50 0.20 240)" strokeDasharray="4 2" strokeWidth={1.5} />
-              {selectedIds.map((id, idx) => (
+              {/* Zone backgrounds as reference areas */}
+              <ReferenceLine x={1.0}   stroke="transparent" />
+              <ReferenceLine x={-0.5}  stroke="#93c5fd" strokeDasharray="2 2" strokeWidth={1} />
+              <ReferenceLine x={-1.75} stroke="#86efac" strokeDasharray="2 2" strokeWidth={1} />
+              <ReferenceLine x={-4.0}  stroke="transparent" />
+              {/* Functional vision cutoff line at 0.20 logMAR */}
+              <ReferenceLine
+                y={0.20}
+                stroke="#ef4444"
+                strokeDasharray="6 3"
+                strokeWidth={1.5}
+                label={{ value: "0.20 logMAR (20/32)", position: "insideTopRight", fontSize: 9, fill: "#ef4444" }}
+              />
+              {/* Peak (0 D) reference */}
+              <ReferenceLine x={0} stroke="#3b82f6" strokeDasharray="4 2" strokeWidth={1.5} />
+              {selectedIds.map((id) => (
                 <Line
                   key={id}
                   type="monotone"
@@ -638,8 +733,8 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
                   name={getMeasurementLabel(id)}
                   stroke={CHART_COLORS[measurements.findIndex((m) => m.id === id) % CHART_COLORS.length]}
                   strokeWidth={2.5}
-                  dot={{ r: 4, strokeWidth: 2 }}
-                  activeDot={{ r: 6 }}
+                  dot={false}
+                  activeDot={{ r: 5 }}
                   connectNulls={false}
                 />
               ))}
@@ -648,7 +743,7 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
         </div>
       ) : (
         <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-          Selecione ao menos uma medição para visualizar o gráfico
+          Selecione ao menos uma medição para visualizar a curva Defocus
         </div>
       )}
     </div>

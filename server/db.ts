@@ -334,7 +334,7 @@ export async function deleteMeasurementPoints(measurementId: number) {
 
 /**
  * Retorna todas as medições reais associadas a uma IOL específica,
- * com seus pontos de curva de defoque. Dados anonimizados (sem nome do paciente).
+ * com seus pontos de curva Defocus. Dados anonimizados (sem nome do paciente).
  */
 export async function getIOLCurves(iolId: number) {
   const db = await getDb();

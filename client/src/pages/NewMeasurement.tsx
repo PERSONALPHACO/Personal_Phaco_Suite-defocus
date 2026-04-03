@@ -28,13 +28,45 @@ import { useLocation, useParams } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import IOLCascadeSelect from "@/components/IOLCascadeSelect";
 
-// Standard defocus curve diopter values
-const DEFAULT_DIOPTERS = [-5, -4.5, -4, -3.5, -3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1];
+// Standard defocus curve diopter values (from +1.0 to -4.0 per protocol)
+const DEFAULT_DIOPTERS = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5, -4];
+
+type AVInputMode = "decimal" | "snellen" | "logmar";
 
 type MeasurementPoint = {
   diopter: number;
   visualAcuity: string;
 };
+
+// ─── VA conversion helpers ────────────────────────────────────────────────────
+function parseVAInput(value: string, mode: AVInputMode): number | null {
+  if (!value.trim()) return null;
+  if (mode === "decimal") {
+    const n = parseFloat(value);
+    return isNaN(n) ? null : n;
+  }
+  if (mode === "logmar") {
+    const n = parseFloat(value);
+    if (isNaN(n)) return null;
+    return parseFloat(Math.pow(10, -n).toFixed(3));
+  }
+  if (mode === "snellen") {
+    const parts = value.split("/");
+    if (parts.length === 2) {
+      const num = parseFloat(parts[0]), den = parseFloat(parts[1]);
+      if (!isNaN(num) && !isNaN(den) && den > 0) return parseFloat((num / den).toFixed(3));
+    }
+    // Allow bare denominator (e.g. "40" → 20/40)
+    const den = parseFloat(value);
+    if (!isNaN(den) && den > 0) return parseFloat((20 / den).toFixed(3));
+    return null;
+  }
+  return null;
+}
+
+const SNELLEN_COMMON = ["20/10", "20/15", "20/20", "20/25", "20/30", "20/40", "20/50", "20/60", "20/80", "20/100", "20/200"];
+const LOGMAR_COMMON = ["-0.30", "-0.18", "-0.10", "0.00", "0.10", "0.18", "0.20", "0.30", "0.40", "0.50", "0.60", "0.70", "0.80", "1.00"];
+const DECIMAL_COMMON = ["2.0", "1.5", "1.25", "1.0", "0.8", "0.63", "0.5", "0.4", "0.32", "0.25", "0.2", "0.1"];
 
 export default function NewMeasurement() {
   const params = useParams<{ id: string }>();
@@ -51,6 +83,7 @@ export default function NewMeasurement() {
   const [eye, setEye] = useState("OD");
   const [patientIolId, setPatientIolId] = useState<string>("none");
   const [notes, setNotes] = useState("");
+  const [avMode, setAvMode] = useState<AVInputMode>("decimal");
   const [points, setPoints] = useState<MeasurementPoint[]>(
     DEFAULT_DIOPTERS.map((d) => ({ diopter: d, visualAcuity: "" }))
   );
@@ -72,7 +105,7 @@ export default function NewMeasurement() {
   };
 
   const addCustomDiopter = () => {
-    const value = prompt("Digite o valor de defoque em dioptrias (ex: -2.75):");
+    const value = prompt("Digite o valor de Defocus em dioptrias (ex: -2.75):");
     if (!value) return;
     const d = parseFloat(value);
     if (isNaN(d) || d < -6 || d > 3) {
@@ -93,22 +126,18 @@ export default function NewMeasurement() {
   };
 
   const handleSubmit = () => {
-    const validPoints = points.filter(
-      (p) => p.visualAcuity !== "" && !isNaN(parseFloat(p.visualAcuity))
-    );
+    const parsedPoints = points
+      .map((p) => ({ diopter: p.diopter, decimal: parseVAInput(p.visualAcuity, avMode) }))
+      .filter((p): p is { diopter: number; decimal: number } => p.decimal !== null);
 
-    if (validPoints.length < 2) {
+    if (parsedPoints.length < 2) {
       toast.error("Registre ao menos 2 pontos de acuidade visual");
       return;
     }
 
-    const invalidVA = validPoints.find((p) => {
-      const va = parseFloat(p.visualAcuity);
-      return va < 0 || va > 2.0;
-    });
-
+    const invalidVA = parsedPoints.find((p) => p.decimal < 0 || p.decimal > 3.0);
     if (invalidVA) {
-      toast.error("Acuidade visual deve estar entre 0.0 e 2.0");
+      toast.error("Valor de acuidade visual fora do intervalo válido");
       return;
     }
 
@@ -118,20 +147,22 @@ export default function NewMeasurement() {
       measurementDate,
       eye: eye as any,
       notes: notes || undefined,
-      points: validPoints.map((p) => ({
+      points: parsedPoints.map((p) => ({
         diopter: p.diopter,
-        visualAcuity: parseFloat(p.visualAcuity),
+        visualAcuity: p.decimal,
       })),
     });
   };
 
-  // Preview chart data
+  // Preview chart data — convert to logMAR for display
   const chartData = points
-    .filter((p) => p.visualAcuity !== "" && !isNaN(parseFloat(p.visualAcuity)))
+    .map((p) => ({ diopter: p.diopter, decimal: parseVAInput(p.visualAcuity, avMode) }))
+    .filter((p): p is { diopter: number; decimal: number } => p.decimal !== null && p.decimal > 0)
     .map((p) => ({
       diopter: p.diopter,
-      va: parseFloat(p.visualAcuity),
-    }));
+      va: parseFloat((-Math.log10(p.decimal)).toFixed(3)),
+    }))
+    .sort((a, b) => b.diopter - a.diopter); // +1.0 to -4.0
 
   return (
     <DefocusLayout>
@@ -233,7 +264,7 @@ export default function NewMeasurement() {
                     Pontos de Acuidade Visual
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Insira a acuidade visual (decimal) para cada valor de defoque
+                    Insira a AV para cada valor de Defocus (+1.0 a −4.0 D)
                   </p>
                 </div>
                 <Button
@@ -247,12 +278,38 @@ export default function NewMeasurement() {
                 </Button>
               </CardHeader>
               <CardContent>
+                {/* AV input mode selector */}
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xs text-muted-foreground font-medium">Formato de entrada:</span>
+                  <div className="flex rounded-lg border overflow-hidden">
+                    {(["decimal", "snellen", "logmar"] as AVInputMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setAvMode(mode)}
+                        className={`px-3 py-1 text-xs font-medium transition-colors ${
+                          avMode === mode
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {mode === "decimal" ? "Decimal" : mode === "snellen" ? "Snellen" : "logMAR"}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {avMode === "decimal" && "Ex: 1.0, 0.8, 0.5"}
+                    {avMode === "snellen" && "Ex: 20/20, 20/40"}
+                    {avMode === "logmar" && "Ex: 0.00, 0.30, 0.70"}
+                  </span>
+                </div>
                 {/* Info box */}
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10 mb-4">
                   <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Insira a acuidade visual em decimal (ex: 1.0 = 20/20, 0.8 = 20/25, 0.5 = 20/40). 
-                    Deixe em branco os pontos não medidos.
+                    {avMode === "decimal" && "Decimal: 1.0 = 20/20 = 0.00 logMAR | 0.5 = 20/40 = 0.30 logMAR | 0.1 = 20/200 = 1.00 logMAR"}
+                    {avMode === "snellen" && "Snellen: 20/20 (excelente) | 20/40 (boa) | 20/200 (baixa). Digite 20/40 ou apenas 40."}
+                    {avMode === "logmar" && "logMAR: 0.00 = 20/20 | 0.20 = 20/32 (corte funcional) | 0.30 = 20/40 | 1.00 = 20/200"}
+                    {" Deixe em branco os pontos não medidos."}
                   </p>
                 </div>
 
@@ -356,39 +413,46 @@ export default function NewMeasurement() {
                       Insira ao menos 2 pontos para visualizar a curva
                     </p>
                   </div>
-                ) : (
+) : (
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData} margin={{ top: 5, right: 15, left: 0, bottom: 20 }}>
+                      <LineChart data={chartData} margin={{ top: 5, right: 15, left: 10, bottom: 22 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
                         <XAxis
                           dataKey="diopter"
                           type="number"
-                          domain={[-5, 1.5]}
+                          domain={[1.0, -4.0]}
+                          ticks={[1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5, -4]}
                           tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
-                          label={{ value: "Defoque (D)", position: "insideBottom", offset: -10, fontSize: 10 }}
-                          tick={{ fontSize: 10 }}
+                          label={{ value: "Defocus (D)", position: "insideBottom", offset: -12, fontSize: 10 }}
+                          tick={{ fontSize: 9 }}
                         />
                         <YAxis
-                          domain={[0, 1.1]}
-                          tickCount={6}
+                          domain={[-0.1, 1.0]}
+                          reversed={true}
+                          ticks={[-0.1, 0, 0.2, 0.3, 0.5, 0.7, 1.0]}
                           tickFormatter={(v) => v.toFixed(1)}
-                          label={{ value: "AV", angle: -90, position: "insideLeft", offset: 12, fontSize: 10 }}
-                          tick={{ fontSize: 10 }}
+                          label={{ value: "logMAR", angle: -90, position: "insideLeft", offset: 5, fontSize: 10 }}
+                          tick={{ fontSize: 9 }}
                         />
                         <Tooltip
-                          formatter={(v: any) => [Number(v).toFixed(2), "AV"]}
-                          labelFormatter={(l) => `${l > 0 ? "+" : ""}${l} D`}
+                          formatter={(v: any) => {
+                            const lm = Number(v);
+                            const snellen = `20/${Math.round(20 * Math.pow(10, lm))}`;
+                            return [`${lm.toFixed(2)} (${snellen})`, "logMAR"];
+                          }}
+                          labelFormatter={(l) => `${Number(l) > 0 ? "+" : ""}${Number(l).toFixed(2)} D`}
                         />
-                        <ReferenceLine x={0} stroke="oklch(0.50 0.20 240)" strokeDasharray="4 2" strokeWidth={1.5} />
+                        <ReferenceLine y={0.20} stroke="#ef4444" strokeDasharray="4 2" strokeWidth={1.5} />
+                        <ReferenceLine x={0} stroke="#3b82f6" strokeDasharray="4 2" strokeWidth={1.5} />
                         <Line
                           type="monotone"
                           dataKey="va"
-                          stroke="oklch(0.50 0.20 240)"
+                          stroke="#7c3aed"
                           strokeWidth={2.5}
-                          dot={{ r: 4, fill: "oklch(0.50 0.20 240)", strokeWidth: 0 }}
+                          dot={{ r: 4, fill: "#7c3aed", strokeWidth: 0 }}
                           activeDot={{ r: 6 }}
-                          name="Acuidade Visual"
+                          name="logMAR"
                         />
                       </LineChart>
                     </ResponsiveContainer>

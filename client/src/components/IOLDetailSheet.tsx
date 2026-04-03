@@ -240,7 +240,7 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                   n = {isLoading ? "..." : n}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {n === 1 ? "curva de defoque registrada" : "curvas de defoque registradas"}
+                  {n === 1 ? "curva Defocus registrada" : "curvas Defocus registradas"}
                 </p>
               </div>
             </div>
@@ -287,7 +287,7 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground">
-                  Curvas de Defoque Individuais
+                  curvas Defocus Individuais
                 </h3>
                 <span className="text-xs text-muted-foreground">
                   {n} {n === 1 ? "medição" : "medições"}
@@ -303,7 +303,7 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                       domain={["dataMin", "dataMax"]}
                       tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
                       label={{
-                        value: "Defoque (D)",
+                        value: "Defocus (D)",
                         position: "insideBottom",
                         offset: -12,
                         fontSize: 11,
@@ -376,7 +376,7 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                           domain={["dataMin", "dataMax"]}
                           tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
                           label={{
-                            value: "Defoque (D)",
+                            value: "Defocus (D)",
                             position: "insideBottom",
                             offset: -12,
                             fontSize: 11,

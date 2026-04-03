@@ -56,12 +56,12 @@ export default function Home() {
           </div>
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight tracking-tight">
-            Curvas de Defoque
+            curvas Defocus
             <span className="block text-primary">para Oftalmologistas</span>
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-            Plote dados de acuidade visual, construa curvas de defoque e compare a performance de IOLs com precisão clínica. Tome decisões mais confiantes na escolha do alvo refrativo.
+            Plote dados de acuidade visual, construa curvas Defocus e compare a performance de IOLs com precisão clínica. Tome decisões mais confiantes na escolha do alvo refrativo.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
@@ -99,8 +99,8 @@ export default function Home() {
             },
             {
               icon: BarChart3,
-              title: "Curvas de Defoque",
-              description: "Plote e visualize curvas de defoque interativas com eixos calibrados em dioptrias e acuidade visual.",
+              title: "curvas Defocus",
+              description: "Plote e visualize curvas Defocus interativas com eixos calibrados em dioptrias e acuidade visual.",
               color: "text-emerald-600",
               bg: "bg-emerald-50",
             },

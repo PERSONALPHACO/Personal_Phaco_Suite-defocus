@@ -102,3 +102,15 @@
 
 ## Bug Fix - Rules of Hooks
 - [x] Corrigir violação das Regras dos Hooks em DefocusChart (hook chamado após return condicional)
+
+## Curva Defocus - Refatoração Completa
+- [x] Substituir todas as ocorrências de "defoque/Defoque" por "Defocus" em todo o projeto
+- [x] Backend: função de conversão logMAR (Decimal → logMAR, Snellen → logMAR)
+- [x] Backend: interpolação spline cúbica (monotone cubic) para suavizar a curva
+- [x] Backend: procedure measurements.defocusCurve que retorna pontos interpolados em logMAR
+- [x] Frontend: gráfico com eixo Y em logMAR invertido (0.0 no topo, 1.0 na base)
+- [x] Frontend: eixo X de +1.0 D (esquerda) a -4.0 D (direita)
+- [x] Frontend: zonas de visão funcionais (Longe/Intermediário/Perto) como bandas de fundo
+- [x] Frontend: linha de corte funcional pontilhada em 0.20 logMAR
+- [x] Frontend: formulário de nova medição com entrada em Snellen/Decimal/logMAR configurável
+- [x] Frontend: stepper rápido para os níveis de defoco fixos (+1.0, +0.5, 0.0, -0.5, ..., -4.0)
