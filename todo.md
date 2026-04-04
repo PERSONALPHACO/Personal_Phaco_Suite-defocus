@@ -241,3 +241,7 @@
 - [x] Inserir logo na sidebar do DashboardLayout (substituindo ícone Activity e texto)
 - [x] Inserir logo nas páginas de login, cadastro, forgot-password e reset-password
 - [x] Verificar visual em todas as páginas
+
+## Feature - Favicon Personalizado
+- [x] Gerar favicon.ico (32x32), favicon-192.png e favicon-512.png a partir da logo
+- [x] Configurar tags de favicon no index.html (ico, png 192, png 512, apple-touch-icon)
