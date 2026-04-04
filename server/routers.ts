@@ -350,11 +350,11 @@ export const appRouter = router({
           measurementDate: new Date(measurementData.measurementDate),
         } as any);
 
-        // Get the new measurement ID
-        const [newMeasurement] = await getMeasurementsByPatient(input.patientId);
-        if (newMeasurement) {
+        // Use insertId directly from the insert result to avoid race conditions
+        const newMeasurementId = result; // createMeasurement now returns insertId directly
+        if (newMeasurementId) {
           const pointsToInsert = points.map((p) => ({
-            measurementId: newMeasurement.id,
+            measurementId: newMeasurementId,
             diopter: p.diopter.toString(),
             visualAcuity: p.visualAcuity.toString(),
           }));

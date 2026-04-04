@@ -164,3 +164,8 @@
 - [x] Corrigir spline: pontos duplicados no mesmo diopter causavam NaN na interpolação
 - [x] Aplicar média dos pontos duplicados antes de construir o spline (PatientDetail + defocusCurve.ts)
 - [x] Dados no banco estão corretos (sem NaN); problema era no processamento client-side
+
+## Bug Fix - Curva OS não aparece no gráfico
+- [x] Corrigir: curva OS (verde) não renderiza mesmo com botão OS selecionado
+- [x] Causa: router usava getMeasurementsByPatient()[0] que retornava OD em vez da OS recém-criada
+- [x] Correção: createMeasurement() agora retorna insertId diretamente, eliminando race condition

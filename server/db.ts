@@ -280,11 +280,11 @@ export async function getMeasurementById(id: number) {
   return result[0] ?? null;
 }
 
-export async function createMeasurement(data: InsertMeasurement) {
+export async function createMeasurement(data: InsertMeasurement): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(measurements).values(data);
-  return result;
+  const [result] = await db.insert(measurements).values(data) as any;
+  return result.insertId as number;
 }
 
 export async function deleteMeasurement(id: number) {
