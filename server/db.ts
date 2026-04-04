@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -413,4 +413,16 @@ export async function getIOLComparisonData(iolIds: number[]) {
     results.push({ iol: iolData, points });
   }
   return results;
+}
+
+// ─── Measurement count (for dashboard stats) ─────────────────────────────────
+export async function getMeasurementCountByUser(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(measurements)
+    .innerJoin(patients, eq(measurements.patientId, patients.id))
+    .where(eq(patients.userId, userId));
+  return Number(result[0]?.count ?? 0);
 }

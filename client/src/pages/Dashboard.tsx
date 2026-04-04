@@ -24,6 +24,7 @@ export default function Dashboard() {
 
   const { data: patients = [] } = trpc.patients.list.useQuery();
   const { data: iols = [] } = trpc.iols.list.useQuery();
+  const { data: measurementCount } = trpc.measurements.totalCount.useQuery();
 
   const recentPatients = patients.slice(0, 5);
 
@@ -93,7 +94,7 @@ export default function Dashboard() {
             },
             {
               title: "Medições Registradas",
-              value: "—",
+              value: measurementCount ?? "—",
               icon: Activity,
               color: "text-amber-600",
               bg: "bg-amber-50",

@@ -29,6 +29,7 @@ import {
   deleteMeasurementPoints,
   getIOLComparisonData,
   getIOLCurves,
+  getMeasurementCountByUser,
 } from "./db";
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
@@ -237,6 +238,11 @@ export const appRouter = router({
 
   // ─── Measurements ────────────────────────────────────────────────────────────
   measurements: router({
+    totalCount: protectedProcedure
+      .query(async ({ ctx }) => {
+        return getMeasurementCountByUser(ctx.user.id);
+      }),
+
     byPatient: protectedProcedure
       .input(z.object({ patientId: z.number() }))
       .query(async ({ input }) => {

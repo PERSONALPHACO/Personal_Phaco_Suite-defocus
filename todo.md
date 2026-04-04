@@ -156,3 +156,6 @@
 - [x] Campo "Design Óptico": converter de input texto para Select com opções predefinidas (difractivo, refrativo, EDOF, etc.)
 - [x] Manter compatibilidade com valores já salvos no banco
 - [x] Constantes centralizadas em client/src/lib/iolConstants.ts com helpers getMaterialLabel e getOpticDesignLabel
+
+## Bug Fix - Contador Medições Registradas no Dashboard
+- [x] Corrigir contador "Medições Registradas" para exibir total global de medições de todos os pacientes
