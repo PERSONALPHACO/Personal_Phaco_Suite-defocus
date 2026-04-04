@@ -227,3 +227,11 @@
 - [x] Frontend: página /reset-password?token=xxx com campos de nova senha e confirmação
 - [x] Frontend: link "Esqueci minha senha" na página de login
 - [x] Testes: 6 testes cobrindo requestPasswordReset e resetPassword (69 testes no total)
+
+## Feature - Notificação de Novo Cadastro para Admins
+- [x] Backend: query adminGetAllAdminEmails para buscar e-mails de todos os usuários com role=admin
+- [x] Backend: helper sendNewDoctorNotification (e-mail HTML com dados do novo médico)
+- [x] Backend: disparar notificação em auth.register após criação bem-sucedida do usuário
+- [x] Backend: notificação assíncrona via setImmediate (não bloqueia o cadastro se e-mail falhar)
+- [x] Testes: 4 testes cobrindo todos os cenários de notificação (73 testes no total)
+- [x] Testes: verificar que falha no envio de e-mail não impede o cadastro

@@ -7,7 +7,7 @@ import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_
 import { sdk } from "./_core/sdk";
 import { generateDefocusCurve, computeFunctionalArea } from "./defocusCurve";
 import bcrypt from "bcryptjs";
-import { sendPasswordResetEmail } from "./_core/email";
+import { sendPasswordResetEmail, sendNewDoctorNotification } from "./_core/email";
 import {
   getAllManufacturers,
   createManufacturer,
@@ -15,6 +15,7 @@ import {
   adminGetAllUsers,
   adminGetUserDetail,
   adminGetIOLStats,
+  adminGetAllAdminEmails,
   createPasswordResetToken,
   getValidPasswordResetToken,
   markPasswordResetTokenUsed,
@@ -87,6 +88,25 @@ export const appRouter = router({
         const token = await sdk.createSessionToken(user.openId, { name: user.name ?? "" });
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
+
+        // Notify all admins asynchronously (does not block registration)
+        setImmediate(async () => {
+          try {
+            const admins = await adminGetAllAdminEmails();
+            await Promise.allSettled(
+              admins.map((admin) =>
+                sendNewDoctorNotification(admin.email, admin.name, {
+                  name: user.name ?? input.name,
+                  email: user.email ?? input.email,
+                  registeredAt: new Date(),
+                })
+              )
+            );
+          } catch (err) {
+            console.error("[Register] Failed to notify admins:", err);
+          }
+        });
+
         return { success: true, user: { id: user.id, name: user.name, email: user.email } };
       }),
 

@@ -702,3 +702,17 @@ export async function updateUserPassword(userId: number, passwordHash: string): 
   if (!db) throw new Error("Database not available");
   await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
 }
+
+/**
+ * Admin: retorna e-mails e nomes de todos os usuários com role=admin.
+ * Usado para enviar notificações de novo cadastro.
+ */
+export async function adminGetAllAdminEmails(): Promise<{ email: string; name: string | null }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({ email: users.email, name: users.name })
+    .from(users)
+    .where(and(eq(users.role, "admin"), sql`${users.email} IS NOT NULL`));
+  return rows.filter((r) => r.email !== null) as { email: string; name: string | null }[];
+}

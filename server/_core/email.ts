@@ -48,6 +48,123 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
 }
 
 /**
+ * Sends a notification to all admins when a new doctor registers.
+ */
+export async function sendNewDoctorNotification(
+  adminEmail: string,
+  adminName: string | null,
+  doctor: { name: string; email: string; registeredAt: Date }
+): Promise<boolean> {
+  const formattedDate = doctor.registeredAt.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const html = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Novo médico cadastrado — DefocusApp</title>
+</head>
+<body style="margin:0;padding:0;background:#0f172a;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155;">
+          <!-- Header -->
+          <tr>
+            <td style="padding:32px 40px 24px;border-bottom:1px solid #334155;">
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#3b82f6;border-radius:10px;width:40px;height:40px;text-align:center;vertical-align:middle;">
+                    <span style="color:#fff;font-size:20px;font-weight:bold;">D</span>
+                  </td>
+                  <td style="padding-left:12px;">
+                    <span style="color:#f8fafc;font-size:18px;font-weight:700;">DefocusApp</span>
+                    <br/>
+                    <span style="color:#94a3b8;font-size:12px;">Painel Administrativo</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Badge -->
+          <tr>
+            <td style="padding:24px 40px 0;">
+              <span style="display:inline-block;background:#1d4ed8;color:#bfdbfe;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;letter-spacing:0.05em;">NOVO CADASTRO</span>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:16px 40px 32px;">
+              <h1 style="margin:0 0 8px;color:#f8fafc;font-size:22px;font-weight:700;">Novo médico cadastrado</h1>
+              <p style="margin:0 0 24px;color:#94a3b8;font-size:15px;line-height:1.6;">
+                Olá${adminName ? `, <strong style="color:#e2e8f0;">${adminName}</strong>` : ""}.<br/>
+                Um novo médico acabou de se cadastrar na plataforma DefocusApp.
+              </p>
+              <!-- Doctor info card -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-radius:8px;border:1px solid #334155;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding-bottom:12px;">
+                          <span style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Nome</span><br/>
+                          <span style="color:#f1f5f9;font-size:16px;font-weight:600;">${doctor.name}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom:12px;border-top:1px solid #1e293b;padding-top:12px;">
+                          <span style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">E-mail</span><br/>
+                          <span style="color:#60a5fa;font-size:14px;">${doctor.email}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="border-top:1px solid #1e293b;padding-top:12px;">
+                          <span style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Data de cadastro</span><br/>
+                          <span style="color:#94a3b8;font-size:14px;">${formattedDate} (Horário de Brasília)</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;color:#64748b;font-size:13px;line-height:1.6;">
+                Este e-mail foi enviado automaticamente pelo sistema DefocusApp.
+                Acesse o painel administrativo para gerenciar os usuários.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 40px;border-top:1px solid #334155;">
+              <p style="margin:0;color:#475569;font-size:12px;text-align:center;">
+                © 2026 DefocusApp · Notificação automática para administradores
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `Novo médico cadastrado: ${doctor.name} — DefocusApp`,
+    html,
+  });
+}
+
+/**
  * Sends a password reset email with a secure link.
  */
 export async function sendPasswordResetEmail(
