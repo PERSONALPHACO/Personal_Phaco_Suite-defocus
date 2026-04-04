@@ -194,3 +194,36 @@
 - [x] Frontend: validação de formulários (email válido, senha mínimo 8 chars, confirmação igual)
 - [x] Frontend: redirecionar usuário não autenticado para /login ao acessar rotas protegidas
 - [x] Frontend: botões da landing page redirecionam para /login
+
+## Feature - Isolamento de Dados por Médico (Multi-tenancy)
+- [ ] Auditar todas as queries: pacientes, medições, patient_iols, comparações
+- [ ] Corrigir getPatientsByUser: já usa userId, confirmar que está correto
+- [ ] Corrigir getAllIOLs/getAllIOLsWithUsage: IOLs são globais (catálogo), mas patient_iols são por usuário
+- [ ] Corrigir getPatientById: garantir que só retorna paciente do userId autenticado
+- [ ] Corrigir getMeasurements: garantir que só retorna medições de pacientes do userId autenticado
+- [ ] Corrigir getPatientIols: garantir que só retorna IOLs de pacientes do userId autenticado
+- [ ] Corrigir getIOLComparisonData: garantir isolamento por userId
+- [ ] Corrigir getIOLCurves: garantir isolamento por userId
+- [ ] Backend: todas as procedures de leitura de dados clínicos devem ser protectedProcedure
+- [ ] Backend: procedures de escrita devem verificar ownership antes de modificar
+
+## Feature - Dashboard Administrativo
+- [ ] Backend: adminProcedure para listar todos os usuários com contagem de pacientes e medições
+- [ ] Backend: adminProcedure para ver pacientes e resultados de um usuário específico
+- [ ] Backend: adminProcedure para ver estatísticas agregadas por IOL (todos os usuários)
+- [ ] Frontend: rota /admin protegida por role=admin
+- [ ] Frontend: página /admin com lista de médicos cadastrados e seus stats
+- [ ] Frontend: página /admin/users/:id com detalhes do médico (pacientes, medições, IOLs usadas)
+- [ ] Frontend: página /admin/iols com ranking de IOLs por desempenho agregado
+- [ ] Frontend: sidebar do admin separada do sidebar do médico
+
+## Feature - Recuperação de Senha por E-mail
+- [x] Verificar serviço de e-mail: usando Resend API (3.000 e-mails/mês grátis)
+- [x] Backend: tabela password_reset_tokens (userId, token, expiresAt, usedAt)
+- [x] Backend: migration SQL aplicada
+- [x] Backend: procedure auth.requestPasswordReset (email) — gera token, envia e-mail via Resend
+- [x] Backend: procedure auth.resetPassword (token, newPassword) — valida token, atualiza senha
+- [x] Frontend: página /forgot-password com campo de e-mail e feedback de sucesso
+- [x] Frontend: página /reset-password?token=xxx com campos de nova senha e confirmação
+- [x] Frontend: link "Esqueci minha senha" na página de login
+- [x] Testes: 6 testes cobrindo requestPasswordReset e resetPassword (69 testes no total)

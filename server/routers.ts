@@ -3,14 +3,22 @@ import { COOKIE_NAME } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
 import { generateDefocusCurve, computeFunctionalArea } from "./defocusCurve";
 import bcrypt from "bcryptjs";
+import { sendPasswordResetEmail } from "./_core/email";
 import {
   getAllManufacturers,
   createManufacturer,
   getAllIOLs,
+  adminGetAllUsers,
+  adminGetUserDetail,
+  adminGetIOLStats,
+  createPasswordResetToken,
+  getValidPasswordResetToken,
+  markPasswordResetTokenUsed,
+  updateUserPassword,
   getAllIOLsWithUsage,
   getIOLById,
   createIOL,
@@ -109,6 +117,49 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+
+    /**
+     * Solicita redefinição de senha: gera token e envia e-mail.
+     * Sempre retorna success para não revelar se o e-mail existe.
+     */
+    requestPasswordReset: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        origin: z.string().url(),
+      }))
+      .mutation(async ({ input }) => {
+        const user = await getUserByEmail(input.email);
+        if (user && user.passwordHash) {
+          // Only email/password accounts can reset via email
+          const token = await createPasswordResetToken(user.id);
+          const resetUrl = `${input.origin}/reset-password?token=${token}`;
+          await sendPasswordResetEmail(user.email!, user.name ?? "Médico", resetUrl);
+        }
+        // Always return success to prevent email enumeration
+        return { success: true };
+      }),
+
+    /**
+     * Redefine a senha usando um token válido.
+     */
+    resetPassword: publicProcedure
+      .input(z.object({
+        token: z.string().min(1),
+        newPassword: z.string().min(8).max(128),
+      }))
+      .mutation(async ({ input }) => {
+        const resetToken = await getValidPasswordResetToken(input.token);
+        if (!resetToken) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Link inválido ou expirado. Solicite um novo link de redefinição.",
+          });
+        }
+        const passwordHash = await bcrypt.hash(input.newPassword, 12);
+        await updateUserPassword(resetToken.userId, passwordHash);
+        await markPasswordResetTokenUsed(input.token);
+        return { success: true };
+      }),
   }),
 
   // ─── Manufacturers ──────────────────────────────────────────────────────────
@@ -265,8 +316,8 @@ export const appRouter = router({
   patientIols: router({
     list: protectedProcedure
       .input(z.object({ patientId: z.number() }))
-      .query(async ({ input }) => {
-        return getPatientIOLs(input.patientId);
+      .query(async ({ ctx, input }) => {
+        return getPatientIOLs(input.patientId, ctx.user.id);
       }),
 
     create: protectedProcedure
@@ -292,8 +343,8 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await deletePatientIOL(input.id);
+      .mutation(async ({ ctx, input }) => {
+        await deletePatientIOL(input.id, ctx.user.id);
         return { success: true };
       }),
   }),
@@ -307,8 +358,8 @@ export const appRouter = router({
 
     byPatient: protectedProcedure
       .input(z.object({ patientId: z.number() }))
-      .query(async ({ input }) => {
-        return getMeasurementsByPatient(input.patientId);
+      .query(async ({ ctx, input }) => {
+        return getMeasurementsByPatient(input.patientId, ctx.user.id);
       }),
 
     points: protectedProcedure
@@ -428,8 +479,8 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await deleteMeasurement(input.id);
+      .mutation(async ({ ctx, input }) => {
+        await deleteMeasurement(input.id, ctx.user.id);
         return { success: true };
       }),
 
@@ -456,3 +507,4 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+

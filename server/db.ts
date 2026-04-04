@@ -9,6 +9,7 @@ import {
   patientIols,
   measurements,
   measurementPoints,
+  passwordResetTokens,
   type Manufacturer,
   type InsertManufacturer,
   type IOL,
@@ -306,11 +307,14 @@ export async function deletePatient(id: number, userId: number) {
   await db.delete(patients).where(and(eq(patients.id, id), eq(patients.userId, userId)));
 }
 
-// ─── Patient IOLs ─────────────────────────────────────────────────────────────
+// ───// ─── Patient IOLs ─────────────────────────────────────────────────────
 
-export async function getPatientIOLs(patientId: number) {
+export async function getPatientIOLs(patientId: number, userId: number) {
   const db = await getDb();
   if (!db) return [];
+  // Verify ownership: only return IOLs for patients belonging to this doctor
+  const patient = await getPatientById(patientId, userId);
+  if (!patient) return [];
   return db
     .select({
       id: patientIols.id,
@@ -338,17 +342,30 @@ export async function createPatientIOL(data: InsertPatientIOL) {
   await db.insert(patientIols).values(data);
 }
 
-export async function deletePatientIOL(id: number) {
+export async function deletePatientIOL(id: number, userId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // Verify ownership via patient if userId provided
+  if (userId !== undefined) {
+    const [pi] = await db
+      .select({ patientUserId: patients.userId })
+      .from(patientIols)
+      .innerJoin(patients, eq(patientIols.patientId, patients.id))
+      .where(eq(patientIols.id, id))
+      .limit(1);
+    if (!pi || pi.patientUserId !== userId) throw new Error("IOL de paciente não encontrada ou sem permissão.");
+  }
   await db.delete(patientIols).where(eq(patientIols.id, id));
 }
 
 // ─── Measurements ─────────────────────────────────────────────────────────────
 
-export async function getMeasurementsByPatient(patientId: number) {
+export async function getMeasurementsByPatient(patientId: number, userId: number) {
   const db = await getDb();
   if (!db) return [];
+  // Verify ownership before returning measurements
+  const patient = await getPatientById(patientId, userId);
+  if (!patient) return [];
   return db
     .select({
       id: measurements.id,
@@ -370,13 +387,15 @@ export async function getMeasurementsByPatient(patientId: number) {
     .orderBy(desc(measurements.measurementDate));
 }
 
-export async function getMeasurementById(id: number) {
+export async function getMeasurementById(id: number, userId?: number) {
   const db = await getDb();
   if (!db) return null;
   const result = await db
     .select()
     .from(measurements)
-    .where(eq(measurements.id, id))
+    .where(userId !== undefined
+      ? and(eq(measurements.id, id), eq(measurements.userId, userId))
+      : eq(measurements.id, id))
     .limit(1);
   return result[0] ?? null;
 }
@@ -388,9 +407,14 @@ export async function createMeasurement(data: InsertMeasurement): Promise<number
   return result.insertId as number;
 }
 
-export async function deleteMeasurement(id: number) {
+export async function deleteMeasurement(id: number, userId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // Verify ownership if userId provided
+  if (userId !== undefined) {
+    const m = await getMeasurementById(id, userId);
+    if (!m) throw new Error("Medição não encontrada ou sem permissão.");
+  }
   await db.delete(measurementPoints).where(eq(measurementPoints.measurementId, id));
   await db.delete(measurements).where(eq(measurements.id, id));
 }
@@ -526,4 +550,155 @@ export async function getMeasurementCountByUser(userId: number): Promise<number>
     .innerJoin(patients, eq(measurements.patientId, patients.id))
     .where(eq(patients.userId, userId));
   return Number(result[0]?.count ?? 0);
+}
+
+// ─── Admin Queries ────────────────────────────────────────────────────────────
+
+/**
+ * Admin: lista todos os médicos cadastrados com contagem de pacientes e medições.
+ */
+export async function adminGetAllUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      loginMethod: users.loginMethod,
+      createdAt: users.createdAt,
+      lastSignedIn: users.lastSignedIn,
+      patientCount: sql<number>`COUNT(DISTINCT ${patients.id})`,
+      measurementCount: sql<number>`COUNT(DISTINCT ${measurements.id})`,
+    })
+    .from(users)
+    .leftJoin(patients, eq(patients.userId, users.id))
+    .leftJoin(measurements, eq(measurements.userId, users.id))
+    .groupBy(users.id, users.name, users.email, users.role, users.loginMethod, users.createdAt, users.lastSignedIn)
+    .orderBy(desc(users.createdAt));
+  return rows;
+}
+
+/**
+ * Admin: detalhes de um médico específico (pacientes + IOLs usadas + medições).
+ */
+export async function adminGetUserDetail(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) return null;
+
+  const userPatients = await db
+    .select({
+      id: patients.id,
+      name: patients.name,
+      birthDate: patients.birthDate,
+      createdAt: patients.createdAt,
+      measurementCount: sql<number>`COUNT(DISTINCT ${measurements.id})`,
+    })
+    .from(patients)
+    .leftJoin(measurements, eq(measurements.patientId, patients.id))
+    .where(eq(patients.userId, userId))
+    .groupBy(patients.id, patients.name, patients.birthDate, patients.createdAt)
+    .orderBy(asc(patients.name));
+
+  // IOLs usadas por este médico com contagem
+  const iolsUsed = await db
+    .select({
+      iolId: iols.id,
+      iolModel: iols.model,
+      iolType: iols.type,
+      manufacturerName: manufacturers.name,
+      usageCount: sql<number>`COUNT(DISTINCT ${patientIols.id})`,
+    })
+    .from(patientIols)
+    .innerJoin(patients, eq(patientIols.patientId, patients.id))
+    .innerJoin(iols, eq(patientIols.iolId, iols.id))
+    .leftJoin(manufacturers, eq(iols.manufacturerId, manufacturers.id))
+    .where(eq(patients.userId, userId))
+    .groupBy(iols.id, iols.model, iols.type, manufacturers.name)
+    .orderBy(sql`COUNT(DISTINCT ${patientIols.id}) DESC`);
+
+  return { user, patients: userPatients, iolsUsed };
+}
+
+/**
+ * Admin: ranking de IOLs por número de usos e métricas agregadas.
+ */
+export async function adminGetIOLStats() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      iolId: iols.id,
+      iolModel: iols.model,
+      iolType: iols.type,
+      manufacturerName: manufacturers.name,
+      totalUses: sql<number>`COUNT(DISTINCT ${patientIols.id})`,
+      totalMeasurements: sql<number>`COUNT(DISTINCT ${measurements.id})`,
+      totalDoctors: sql<number>`COUNT(DISTINCT ${patients.userId})`,
+    })
+    .from(iols)
+    .leftJoin(patientIols, eq(patientIols.iolId, iols.id))
+    .leftJoin(patients, eq(patientIols.patientId, patients.id))
+    .leftJoin(measurements, eq(measurements.patientIolId, patientIols.id))
+    .leftJoin(manufacturers, eq(iols.manufacturerId, manufacturers.id))
+    .where(eq(iols.isActive, true))
+    .groupBy(iols.id, iols.model, iols.type, manufacturers.name)
+    .orderBy(sql`COUNT(DISTINCT ${patientIols.id}) DESC`);
+  return rows;
+}
+
+// ─── Password Reset Tokens ────────────────────────────────────────────────────
+
+import crypto from "crypto";
+
+export async function createPasswordResetToken(userId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Invalidate any existing unused tokens for this user
+  await db
+    .delete(passwordResetTokens)
+    .where(and(eq(passwordResetTokens.userId, userId), sql`${passwordResetTokens.usedAt} IS NULL`));
+
+  const token = crypto.randomBytes(48).toString("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await db.insert(passwordResetTokens).values({ userId, token, expiresAt });
+  return token;
+}
+
+export async function getValidPasswordResetToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db
+    .select()
+    .from(passwordResetTokens)
+    .where(
+      and(
+        eq(passwordResetTokens.token, token),
+        sql`${passwordResetTokens.usedAt} IS NULL`,
+        sql`${passwordResetTokens.expiresAt} > NOW()`
+      )
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export async function markPasswordResetTokenUsed(token: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(eq(passwordResetTokens.token, token));
+}
+
+export async function updateUserPassword(userId: number, passwordHash: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
 }

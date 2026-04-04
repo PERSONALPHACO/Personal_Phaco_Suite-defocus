@@ -139,3 +139,19 @@ export const measurementPoints = mysqlTable("measurement_points", {
 
 export type MeasurementPoint = typeof measurementPoints.$inferSelect;
 export type InsertMeasurementPoint = typeof measurementPoints.$inferInsert;
+
+/**
+ * Password Reset Tokens
+ * Tokens de redefinição de senha com expiração de 1 hora
+ */
+export const passwordResetTokens = mysqlTable("password_reset_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
