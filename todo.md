@@ -176,3 +176,9 @@
 - [x] Frontend: botão de editar em cada card de IOL abrindo modal pré-preenchido
 - [x] Frontend: botão de deletar com modal de confirmação antes de excluir
 - [x] Frontend: invalidar cache após editar/deletar para atualizar a lista
+
+## UX - Botões Editar/Excluir e Ordenação por Frequência
+- [x] Corrigir visibilidade dos botões de editar/excluir nos cards de IOL (botões Editar e Excluir explícitos no rodapé de cada card)
+- [x] Adicionar ordenação por frequência de uso: IOLs mais usadas pelo médico aparecem primeiro na biblioteca
+- [x] Backend: procedure/query para contar uso de cada IOL pelo usuário logado (via patient_iols + patients JOIN)
+- [x] Frontend: indicador visual de "mais usada" nos cards de IOL (barra dourada + badge ★ Nx usada)

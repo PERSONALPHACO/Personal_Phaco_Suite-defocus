@@ -75,6 +75,7 @@ type IOLItem = {
   powerRange: string | null;
   notes: string | null;
   isActive: boolean;
+  usageCount: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -138,15 +139,18 @@ function IOLCard({
   onClick,
   onEdit,
   onDelete,
+  rank,
 }: {
   iol: IOLItem;
   onClick: () => void;
   onEdit: (iol: IOLItem) => void;
   onDelete: (iol: IOLItem) => void;
+  rank: number; // 1-based position for "most used" badge
 }) {
   const { data } = trpc.iols.curves.useQuery({ iolId: iol.id });
   const n = data?.count ?? 0;
   const hasData = n > 0;
+  const isFrequent = iol.usageCount > 0;
 
   const typeInfo =
     IOL_TYPES.find((t) => t.value === iol.type) || {
@@ -157,18 +161,25 @@ function IOLCard({
   return (
     <Card
       key={iol.id}
-      className="border hover:shadow-md hover:border-primary/30 transition-all overflow-hidden cursor-pointer group"
+      className={`border transition-all overflow-hidden cursor-pointer group ${
+        isFrequent
+          ? "hover:shadow-lg hover:border-accent/50 border-accent/20"
+          : "hover:shadow-md hover:border-primary/30"
+      }`}
       onClick={onClick}
     >
-      {/* Top accent bar — green if has real data, blue otherwise */}
+      {/* Top accent bar — gold if frequently used, green if has data, blue otherwise */}
       <div
         className={`h-1.5 bg-gradient-to-r transition-all ${
-          hasData
+          isFrequent
+            ? "from-amber-400 to-yellow-300"
+            : hasData
             ? "from-emerald-500 to-emerald-400"
             : "from-primary to-primary/40"
         }`}
       />
       <CardContent className="p-5">
+        {/* Header row: avatar + model + type badge */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -203,37 +214,14 @@ function IOLCard({
             </p>
           </div>
           <div className="flex flex-col items-end gap-1.5 ml-2 shrink-0">
-            <div className="flex items-center gap-1">
-              <Badge variant="outline" className={`text-xs ${typeInfo.color}`}>
-                {typeInfo.label}
-              </Badge>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <MoreVertical className="w-3.5 h-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuItem onClick={() => onEdit(iol)}>
-                    <Pencil className="w-3.5 h-3.5 mr-2" />
-                    Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => onDelete(iol)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-2" />
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <Badge variant="outline" className={`text-xs ${typeInfo.color}`}>
+              {typeInfo.label}
+            </Badge>
+            {isFrequent && (
+              <span className="text-[10px] font-semibold text-amber-600 flex items-center gap-0.5">
+                ★ {iol.usageCount}× usada
+              </span>
+            )}
           </div>
         </div>
 
@@ -263,7 +251,7 @@ function IOLCard({
           )}
         </div>
 
-        {/* Footer: n-curves badge + click hint */}
+        {/* Footer: n-curves badge + action buttons */}
         <div className="flex items-center justify-between mt-4 pt-3 border-t">
           {hasData ? (
             <div className="flex items-center gap-1.5">
@@ -282,9 +270,26 @@ function IOLCard({
               <span className="text-xs text-muted-foreground">Sem curvas ainda</span>
             </div>
           )}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
-            <span>Ver curvas</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+          {/* Action buttons — always visible */}
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted gap-1"
+              onClick={(e) => { e.stopPropagation(); onEdit(iol); }}
+            >
+              <Pencil className="w-3 h-3" />
+              Editar
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-destructive/70 hover:text-destructive hover:bg-destructive/10 gap-1"
+              onClick={(e) => { e.stopPropagation(); onDelete(iol); }}
+            >
+              <Trash2 className="w-3 h-3" />
+              Excluir
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -602,10 +607,11 @@ export default function IOLs() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((iol) => (
+            {filtered.map((iol, idx) => (
               <IOLCard
                 key={iol.id}
                 iol={iol as IOLItem}
+                rank={idx + 1}
                 onClick={() => handleIOLClick(iol as IOLItem)}
                 onEdit={handleEditIOL}
                 onDelete={handleDeleteIOL}

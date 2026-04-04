@@ -125,6 +125,63 @@ export async function getAllIOLs() {
     .orderBy(asc(manufacturers.name), asc(iols.model));
 }
 
+/**
+ * Returns all active IOLs with usage count for the given user (doctor).
+ * IOLs used more frequently by this doctor appear first.
+ * Falls back to alphabetical order for ties.
+ * Uses a JOIN with patients table to avoid subqueries in ON clause (TiDB limitation).
+ */
+export async function getAllIOLsWithUsage(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  // Join patient_iols -> patients to scope usage count to this doctor's patients
+  const rows = await db
+    .select({
+      id: iols.id,
+      manufacturerId: iols.manufacturerId,
+      model: iols.model,
+      type: iols.type,
+      material: iols.material,
+      opticDesign: iols.opticDesign,
+      powerRange: iols.powerRange,
+      notes: iols.notes,
+      aConstant: iols.aConstant,
+      isActive: iols.isActive,
+      createdAt: iols.createdAt,
+      updatedAt: iols.updatedAt,
+      manufacturerName: manufacturers.name,
+      manufacturerCountry: manufacturers.country,
+      usageCount: sql<number>`COUNT(DISTINCT CASE WHEN ${patients.userId} = ${userId} THEN ${patientIols.id} ELSE NULL END)`,
+    })
+    .from(iols)
+    .leftJoin(manufacturers, eq(iols.manufacturerId, manufacturers.id))
+    .leftJoin(patientIols, eq(patientIols.iolId, iols.id))
+    .leftJoin(patients, eq(patientIols.patientId, patients.id))
+    .where(eq(iols.isActive, true))
+    .groupBy(
+      iols.id,
+      iols.manufacturerId,
+      iols.model,
+      iols.type,
+      iols.material,
+      iols.opticDesign,
+      iols.powerRange,
+      iols.notes,
+      iols.aConstant,
+      iols.isActive,
+      iols.createdAt,
+      iols.updatedAt,
+      manufacturers.name,
+      manufacturers.country
+    )
+    .orderBy(
+      sql`COUNT(DISTINCT CASE WHEN ${patients.userId} = ${userId} THEN ${patientIols.id} ELSE NULL END) DESC`,
+      asc(manufacturers.name),
+      asc(iols.model)
+    );
+  return rows;
+}
+
 export async function getIOLById(id: number) {
   const db = await getDb();
   if (!db) return null;

@@ -8,6 +8,7 @@ import {
   getAllManufacturers,
   createManufacturer,
   getAllIOLs,
+  getAllIOLsWithUsage,
   getIOLById,
   createIOL,
   updateIOL,
@@ -79,8 +80,8 @@ export const appRouter = router({
 
   // ─── IOLs ───────────────────────────────────────────────────────────────────
   iols: router({
-    list: publicProcedure.query(async () => {
-      return getAllIOLs();
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getAllIOLsWithUsage(ctx.user.id);
     }),
 
     byId: publicProcedure

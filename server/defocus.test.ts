@@ -77,11 +77,17 @@ describe("auth", () => {
 // ─── IOL Router Tests ─────────────────────────────────────────────────────────
 
 describe("iols", () => {
-  it("list is publicly accessible without auth", async () => {
-    const ctx = createUnauthContext();
-    const caller = appRouter.createCaller(ctx);
-    // Should not throw for public procedure
-    await expect(caller.iols.list()).resolves.toBeDefined();
+  it("list requires authentication and returns IOLs sorted by usage", async () => {
+    // iols.list is now a protectedProcedure that sorts by doctor's usage frequency
+    const unauthCtx = createUnauthContext();
+    const unauthCaller = appRouter.createCaller(unauthCtx);
+    // Should throw UNAUTHORIZED for unauthenticated users
+    await expect(unauthCaller.iols.list()).rejects.toThrow();
+
+    // Should resolve for authenticated users (may return empty array if no DB in test)
+    const authCtx = createMockContext();
+    const authCaller = appRouter.createCaller(authCtx);
+    await expect(authCaller.iols.list()).resolves.toBeDefined();
   });
 
   it("byId is publicly accessible", async () => {
