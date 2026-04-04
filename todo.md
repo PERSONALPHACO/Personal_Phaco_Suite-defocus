@@ -182,3 +182,15 @@
 - [x] Adicionar ordenação por frequência de uso: IOLs mais usadas pelo médico aparecem primeiro na biblioteca
 - [x] Backend: procedure/query para contar uso de cada IOL pelo usuário logado (via patient_iols + patients JOIN)
 - [x] Frontend: indicador visual de "mais usada" nos cards de IOL (barra dourada + badge ★ Nx usada)
+
+## Feature - Login e Cadastro com Email/Senha
+- [x] Backend: adicionar campos passwordHash e emailVerified à tabela users no schema
+- [x] Backend: migration SQL para novos campos (ALTER TABLE users ADD passwordHash, emailVerified)
+- [x] Backend: procedure auth.register (nome, email, senha) com hash bcrypt
+- [x] Backend: procedure auth.loginEmail (email, senha) que valida hash e cria sessão JWT
+- [x] Backend: procedure auth.me já existente continua funcionando
+- [x] Frontend: página /login com formulário de login (email + senha) e link para cadastro
+- [x] Frontend: página /register com formulário de cadastro (nome, email, senha, confirmação)
+- [x] Frontend: validação de formulários (email válido, senha mínimo 8 chars, confirmação igual)
+- [x] Frontend: redirecionar usuário não autenticado para /login ao acessar rotas protegidas
+- [x] Frontend: botões da landing page redirecionam para /login

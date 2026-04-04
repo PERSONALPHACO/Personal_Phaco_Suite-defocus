@@ -1,6 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { getLoginUrl } from "@/const";
 import { Activity, ArrowRight, BarChart3, Eye, GitCompare, Lock, Shield, Users } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
@@ -38,7 +37,7 @@ export default function Home() {
             </div>
           </div>
           <Button
-            onClick={() => { window.location.href = getLoginUrl(); }}
+            onClick={() => { window.location.href = "/login"; }}
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
           >
             Entrar
@@ -67,7 +66,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Button
               size="lg"
-              onClick={() => { window.location.href = getLoginUrl(); }}
+              onClick={() => { window.location.href = "/login"; }}
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 shadow-lg hover:shadow-xl transition-all"
             >
               Acessar Plataforma
@@ -159,7 +158,7 @@ export default function Home() {
           <Button
             size="lg"
             variant="outline"
-            onClick={() => { window.location.href = getLoginUrl(); }}
+            onClick={() => { window.location.href = "/login"; }}
             className="bg-white text-primary hover:bg-white/90 font-semibold border-0 shadow-md"
           >
             Entrar na Plataforma

@@ -75,41 +75,15 @@ export default function DefocusLayout({ children }: { children: React.ReactNode 
   }
 
   if (!user) {
+    // Redirect to login page instead of showing inline gate
+    useEffect(() => {
+      window.location.href = "/login";
+    }, []);
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/10 flex items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-8 p-10 max-w-md w-full bg-card rounded-2xl shadow-xl border">
-          {/* Logo */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-              <Activity className="w-8 h-8 text-primary-foreground" />
-            </div>
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">DefocusApp</h1>
-              <p className="text-sm text-muted-foreground mt-1">Plataforma de Análise de IOLs</p>
-            </div>
-          </div>
-
-          <div className="w-full space-y-4">
-            <div className="text-center space-y-2">
-              <h2 className="text-lg font-semibold text-foreground">Acesso Restrito</h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Esta plataforma é exclusiva para oftalmologistas cadastrados. Faça login para acessar seus dados clínicos.
-              </p>
-            </div>
-
-            <Button
-              onClick={() => { window.location.href = getLoginUrl(); }}
-              size="lg"
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md hover:shadow-lg transition-all"
-            >
-              Entrar na Plataforma
-            </Button>
-
-            <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground">
-              <Shield className="w-3 h-3" />
-              <span>Dados protegidos por LGPD/GDPR</span>
-            </div>
-          </div>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-sm text-muted-foreground">Redirecionando para login...</p>
         </div>
       </div>
     );

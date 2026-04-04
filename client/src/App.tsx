@@ -12,11 +12,15 @@ import IOLs from "./pages/IOLs";
 import Compare from "./pages/Compare";
 import NewMeasurement from "./pages/NewMeasurement";
 import Privacy from "./pages/Privacy";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/patients" component={Patients} />
       <Route path="/patients/:id" component={PatientDetail} />
