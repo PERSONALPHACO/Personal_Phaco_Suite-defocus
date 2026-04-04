@@ -169,3 +169,10 @@
 - [x] Corrigir: curva OS (verde) não renderiza mesmo com botão OS selecionado
 - [x] Causa: router usava getMeasurementsByPatient()[0] que retornava OD em vez da OS recém-criada
 - [x] Correção: createMeasurement() agora retorna insertId diretamente, eliminando race condition
+
+## Feature - Editar e Deletar IOL
+- [ ] Backend: procedure iols.update para editar campos de uma IOL existente
+- [ ] Backend: procedure iols.delete para remover uma IOL (com verificação de dependências)
+- [ ] Frontend: botão de editar em cada card de IOL abrindo modal pré-preenchido
+- [ ] Frontend: botão de deletar com modal de confirmação antes de excluir
+- [ ] Frontend: invalidar cache após editar/deletar para atualizar a lista

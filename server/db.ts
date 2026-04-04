@@ -162,7 +162,11 @@ export async function updateIOL(id: number, data: Partial<InsertIOL>) {
   if (!db) throw new Error("Database not available");
   await db.update(iols).set(data).where(eq(iols.id, id));
 }
-
+export async function deleteIOL(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(iols).where(eq(iols.id, id));
+}
 // ─── Patients ─────────────────────────────────────────────────────────────────
 
 export async function getPatientsByUser(userId: number) {

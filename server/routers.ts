@@ -11,6 +11,7 @@ import {
   getIOLById,
   createIOL,
   updateIOL,
+  deleteIOL,
   getPatientsByUser,
   getPatientById,
   createPatient,
@@ -121,6 +122,13 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
         await updateIOL(id, data);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteIOL(input.id);
         return { success: true };
       }),
 

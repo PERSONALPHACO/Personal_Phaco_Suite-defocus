@@ -22,7 +22,24 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Filter, Plus, Search, TrendingUp, ChevronRight, Layers } from "lucide-react";
+import { Filter, Plus, Search, TrendingUp, ChevronRight, Layers, Pencil, Trash2, MoreVertical } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -119,9 +136,13 @@ function getMfrStyle(name: string | null): { bg: string; text: string; initials:
 function IOLCard({
   iol,
   onClick,
+  onEdit,
+  onDelete,
 }: {
   iol: IOLItem;
   onClick: () => void;
+  onEdit: (iol: IOLItem) => void;
+  onDelete: (iol: IOLItem) => void;
 }) {
   const { data } = trpc.iols.curves.useQuery({ iolId: iol.id });
   const n = data?.count ?? 0;
@@ -182,9 +203,37 @@ function IOLCard({
             </p>
           </div>
           <div className="flex flex-col items-end gap-1.5 ml-2 shrink-0">
-            <Badge variant="outline" className={`text-xs ${typeInfo.color}`}>
-              {typeInfo.label}
-            </Badge>
+            <div className="flex items-center gap-1">
+              <Badge variant="outline" className={`text-xs ${typeInfo.color}`}>
+                {typeInfo.label}
+              </Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreVertical className="w-3.5 h-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onClick={() => onEdit(iol)}>
+                    <Pencil className="w-3.5 h-3.5 mr-2" />
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => onDelete(iol)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
 
@@ -250,6 +299,9 @@ export default function IOLs() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterManufacturer, setFilterManufacturer] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingIOL, setEditingIOL] = useState<IOLItem | null>(null);
+  const [deleteConfirmIOL, setDeleteConfirmIOL] = useState<IOLItem | null>(null);
 
   // Sheet state
   const [selectedIOL, setSelectedIOL] = useState<IOLItem | null>(null);
@@ -268,9 +320,31 @@ export default function IOLs() {
     onError: (err) => toast.error("Erro ao cadastrar IOL: " + err.message),
   });
 
+  const updateIOL = trpc.iols.update.useMutation({
+    onSuccess: () => {
+      toast.success("IOL atualizada com sucesso!");
+      setEditDialogOpen(false);
+      setEditingIOL(null);
+      editReset();
+      refetchIOLs();
+    },
+    onError: (err) => toast.error("Erro ao atualizar IOL: " + err.message),
+  });
+
+  const deleteIOL = trpc.iols.delete.useMutation({
+    onSuccess: () => {
+      toast.success("IOL excluída com sucesso!");
+      setDeleteConfirmIOL(null);
+      refetchIOLs();
+    },
+    onError: (err) => toast.error("Erro ao excluir IOL: " + err.message),
+  });
+
   const { register, handleSubmit, setValue, reset } = useForm<IOLFormData>({
     defaultValues: { type: "trifocal" },
   });
+
+  const { register: editRegister, handleSubmit: editHandleSubmit, setValue: editSetValue, reset: editReset } = useForm<IOLFormData>();
 
   const onSubmit = (data: IOLFormData) => {
     if (!data.manufacturerId) {
@@ -286,6 +360,37 @@ export default function IOLs() {
       powerRange: data.powerRange || undefined,
       notes: data.notes || undefined,
     });
+  };
+
+  const onEditSubmit = (data: IOLFormData) => {
+    if (!editingIOL) return;
+    updateIOL.mutate({
+      id: editingIOL.id,
+      model: data.model,
+      type: data.type as any,
+      material: data.material || undefined,
+      opticDesign: data.opticDesign || undefined,
+      powerRange: data.powerRange || undefined,
+      notes: data.notes || undefined,
+    });
+  };
+
+  const handleEditIOL = (iol: IOLItem) => {
+    setEditingIOL(iol);
+    editReset({
+      manufacturerId: iol.manufacturerId.toString(),
+      model: iol.model,
+      type: iol.type,
+      material: iol.material || "",
+      opticDesign: iol.opticDesign || "",
+      powerRange: iol.powerRange || "",
+      notes: iol.notes || "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleDeleteIOL = (iol: IOLItem) => {
+    setDeleteConfirmIOL(iol);
   };
 
   const handleIOLClick = (iol: IOLItem) => {
@@ -502,6 +607,8 @@ export default function IOLs() {
                 key={iol.id}
                 iol={iol as IOLItem}
                 onClick={() => handleIOLClick(iol as IOLItem)}
+                onEdit={handleEditIOL}
+                onDelete={handleDeleteIOL}
               />
             ))}
           </div>
@@ -514,6 +621,134 @@ export default function IOLs() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
       />
+
+      {/* Edit IOL Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingIOL(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar IOL</DialogTitle>
+            <DialogDescription>
+              Atualize as informações da lente intraocular
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={editHandleSubmit(onEditSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-1.5">
+                <Label>Fabricante</Label>
+                <p className="text-sm text-muted-foreground">{editingIOL ? manufacturers.find(m => m.id === editingIOL.manufacturerId)?.name ?? "—" : "—"}</p>
+              </div>
+
+              <div className="col-span-2 space-y-1.5">
+                <Label>Modelo *</Label>
+                <Input
+                  {...editRegister("model", { required: true })}
+                  placeholder="Ex: PanOptix, Vivity, Symfony..."
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Tipo *</Label>
+                <Select
+                  defaultValue={editingIOL?.type ?? "trifocal"}
+                  onValueChange={(v) => editSetValue("type", v)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {IOL_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Material</Label>
+                <Select
+                  defaultValue={editingIOL?.material ?? ""}
+                  onValueChange={(v) => editSetValue("material", v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione o material" /></SelectTrigger>
+                  <SelectContent>
+                    {IOL_MATERIALS.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="col-span-2 space-y-1.5">
+                <Label>Design Óptico</Label>
+                <Select
+                  defaultValue={editingIOL?.opticDesign ?? ""}
+                  onValueChange={(v) => editSetValue("opticDesign", v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione o design óptico" /></SelectTrigger>
+                  <SelectContent>
+                    {IOL_OPTIC_DESIGNS.map((d) => (
+                      <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="col-span-2 space-y-1.5">
+                <Label>Faixa de Poder (D)</Label>
+                <Input
+                  {...editRegister("powerRange")}
+                  placeholder="Ex: +6.0 to +34.0 D"
+                />
+              </div>
+
+              <div className="col-span-2 space-y-1.5">
+                <Label>Notas Clínicas</Label>
+                <Textarea
+                  {...editRegister("notes")}
+                  placeholder="Observações sobre a lente..."
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { setEditDialogOpen(false); setEditingIOL(null); }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateIOL.isPending}
+                className="bg-primary text-primary-foreground"
+              >
+                {updateIOL.isPending ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmIOL} onOpenChange={(open) => { if (!open) setDeleteConfirmIOL(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir IOL</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a IOL <strong>{deleteConfirmIOL?.model}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmIOL && deleteIOL.mutate({ id: deleteConfirmIOL.id })}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteIOL.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DefocusLayout>
   );
 }
