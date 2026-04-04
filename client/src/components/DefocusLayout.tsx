@@ -165,18 +165,12 @@ function DefocusLayoutContent({
                 <PanelLeft className="h-4 w-4 text-sidebar-foreground/60" />
               </button>
               {!isCollapsed && (
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-                    <Activity className="w-4 h-4 text-sidebar-primary-foreground" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-bold text-sidebar-foreground text-sm tracking-tight truncate">
-                      DefocusApp
-                    </p>
-                    <p className="text-[10px] text-sidebar-foreground/50 truncate">
-                      Análise de IOLs
-                    </p>
-                  </div>
+                <div className="flex items-center min-w-0">
+                  <img
+                    src="https://d2xsxph8kpxj0f.cloudfront.net/310519663364551298/n7THbuCkaLecDawSNhBVgp/logodefocusapp_3f62e833.webp"
+                    alt="DefocusApp"
+                    className="h-9 w-auto object-contain"
+                  />
                 </div>
               )}
             </div>

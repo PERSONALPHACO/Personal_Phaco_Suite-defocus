@@ -65,10 +65,11 @@ export default function ResetPassword() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4">
       {/* Logo */}
       <div className="flex flex-col items-center mb-8">
-        <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30 mb-4">
-          <Activity className="w-7 h-7 text-primary-foreground" />
-        </div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">DefocusApp</h1>
+        <img
+          src="https://d2xsxph8kpxj0f.cloudfront.net/310519663364551298/n7THbuCkaLecDawSNhBVgp/logodefocusapp_3f62e833.webp"
+          alt="DefocusApp"
+          className="h-24 w-auto object-contain mb-2"
+        />
         <p className="text-sm text-muted-foreground mt-1">Análise de Curvas de Defoque</p>
       </div>
 

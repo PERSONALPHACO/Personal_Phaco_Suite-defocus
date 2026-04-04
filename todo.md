@@ -235,3 +235,9 @@
 - [x] Backend: notificação assíncrona via setImmediate (não bloqueia o cadastro se e-mail falhar)
 - [x] Testes: 4 testes cobrindo todos os cenários de notificação (73 testes no total)
 - [x] Testes: verificar que falha no envio de e-mail não impede o cadastro
+
+## Feature - Logo da DefocusApp
+- [x] Upload da logo para CDN e obtenção da URL pública
+- [x] Inserir logo na sidebar do DashboardLayout (substituindo ícone Activity e texto)
+- [x] Inserir logo nas páginas de login, cadastro, forgot-password e reset-password
+- [x] Verificar visual em todas as páginas
