@@ -162,9 +162,23 @@ export async function updateIOL(id: number, data: Partial<InsertIOL>) {
   if (!db) throw new Error("Database not available");
   await db.update(iols).set(data).where(eq(iols.id, id));
 }
+
 export async function deleteIOL(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // Check for dependencies: patient_iols and measurements
+  const [piRows] = await db.select({ count: sql<number>`COUNT(*)` }).from(patientIols).where(eq(patientIols.iolId, id));
+  if (piRows && Number(piRows.count) > 0) {
+    throw new Error(`Esta IOL está associada a ${piRows.count} paciente(s) e não pode ser excluída.`);
+  }
+  const [mRows] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(measurements)
+    .innerJoin(patientIols, eq(measurements.patientIolId, patientIols.id))
+    .where(eq(patientIols.iolId, id));
+  if (mRows && Number(mRows.count) > 0) {
+    throw new Error(`Esta IOL possui ${mRows.count} medição(oes) registrada(s) e não pode ser excluída.`);
+  }
   await db.delete(iols).where(eq(iols.id, id));
 }
 // ─── Patients ─────────────────────────────────────────────────────────────────
