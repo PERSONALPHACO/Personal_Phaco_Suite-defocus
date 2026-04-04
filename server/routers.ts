@@ -8,6 +8,7 @@ import { sdk } from "./_core/sdk";
 import { generateDefocusCurve, computeFunctionalArea } from "./defocusCurve";
 import bcrypt from "bcryptjs";
 import { sendPasswordResetEmail, sendNewDoctorNotification } from "./_core/email";
+import { generatePDFReport, type PDFReportData } from "./pdfGenerator";
 import {
   getAllManufacturers,
   createManufacturer,
@@ -329,6 +330,55 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await deletePatient(input.id, ctx.user.id);
         return { success: true };
+      }),
+
+    exportPDF: protectedProcedure
+      .input(
+        z.object({
+          caseId: z.string(),
+          iols: z.array(
+            z.object({
+              eye: z.string(),
+              iolName: z.string(),
+              manufacturer: z.string(),
+              surgeryDate: z.string().optional(),
+              refractiveTarget: z.string().optional(),
+            })
+          ),
+          series: z.array(
+            z.object({
+              id: z.number(),
+              label: z.string(),
+              color: z.string(),
+              points: z.array(
+                z.object({
+                  diopter: z.number(),
+                  visualAcuity: z.number(),
+                })
+              ),
+            })
+          ),
+          logoUrl: z.string().url(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const reportData: PDFReportData = {
+          doctorName: ctx.user.name ?? ctx.user.email ?? "Médico",
+          caseId: input.caseId,
+          generatedAt: new Date().toLocaleString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          iols: input.iols,
+          series: input.series,
+          logoUrl: input.logoUrl,
+        };
+        const pdfBuffer = await generatePDFReport(reportData);
+        return { pdf: pdfBuffer.toString("base64") };
       }),
   }),
 

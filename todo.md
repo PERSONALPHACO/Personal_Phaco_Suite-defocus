@@ -245,3 +245,12 @@
 ## Feature - Favicon Personalizado
 - [x] Gerar favicon.ico (32x32), favicon-192.png e favicon-512.png a partir da logo
 - [x] Configurar tags de favicon no index.html (ico, png 192, png 512, apple-touch-icon)
+
+## Feature - Exportar PDF Curva Defocus
+- [x] Backend: Puppeteer para gerar PDF no servidor (server/pdfGenerator.ts)
+- [x] Backend: procedure patients.exportPDF retorna PDF como base64
+- [x] Logo em base64 embutida no servidor (server/logoBase64.ts) para evitar CORS
+- [x] Botão "Exportar PDF" no card de Curva Defocus da página do paciente
+- [x] Relatório anonimizado: sem nome do paciente, apenas ID do caso
+- [x] Inclui: logo DefocusApp, nome do médico, data/hora, tabela de IOLs, gráfico SVG, aviso LGPD
+- [x] PDF verificado: 114KB, 1 página A4, logo e gráfico renderizados corretamente

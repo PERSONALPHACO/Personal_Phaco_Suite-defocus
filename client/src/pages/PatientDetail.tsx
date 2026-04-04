@@ -37,12 +37,16 @@ import {
   ArrowLeft,
   Calendar,
   Eye,
+  FileDown,
+  Loader2,
   Plus,
   Shield,
   Trash2,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import IOLCascadeSelect from "@/components/IOLCascadeSelect";
+import DefocusReportPDF from "@/components/DefocusReportPDF";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { useLocation, useParams } from "wouter";
@@ -143,6 +147,14 @@ export default function PatientDetail() {
   const patientId = parseInt(params.id || "0");
   const [, setLocation] = useLocation();
   const [iolDialogOpen, setIolDialogOpen] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportPdfData, setExportPdfData] = useState<{ selectedIds: number[]; chartData: Record<string, any>[] }>({ selectedIds: [], chartData: [] });
+  const reportRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+
+  const handleExportReady = useCallback((selectedIds: number[], chartData: Record<string, any>[]) => {
+    setExportPdfData({ selectedIds, chartData });
+  }, []);
 
   const { data: patient, isLoading } = trpc.patients.byId.useQuery({ id: patientId });
   const { data: patientIols = [], refetch: refetchIols } = trpc.patientIols.list.useQuery({ patientId });
@@ -170,6 +182,71 @@ export default function PatientDetail() {
   });
 
   const iolForm = useForm<PatientIOLFormData>({ defaultValues: { eye: "OD" } });
+
+  const exportPDFMutation = trpc.patients.exportPDF.useMutation();
+
+  // ─── Export PDF (server-side via Puppeteer) ──────────────────────────────
+  const exportPDF = useCallback(async () => {
+    const { selectedIds, chartData } = exportPdfData;
+    if (selectedIds.length === 0 || chartData.length === 0) return;
+    setExportingPdf(true);
+    try {
+      // Build series from chartData rows
+      const series = selectedIds.map((id, idx) => {
+        const color = CHART_COLORS[idx % CHART_COLORS.length];
+        const m = measurements.find((x: any) => x.id === id);
+        const label = m
+          ? `${format(new Date(m.measurementDate), "dd/MM/yy")} ${m.eye}${m.iolModel ? ` · ${m.iolModel}` : ""}`
+          : `Medição ${id}`;
+        const points = chartData
+          .filter((row: any) => row[`m_${id}`] !== undefined)
+          .map((row: any) => ({
+            diopter: row.diopter as number,
+            visualAcuity: row[`m_${id}`] as number,
+          }));
+        return { id, label, color, points };
+      });
+
+      // Build IOL list
+      const iolsList = (patientIols as any[]).map((piol: any) => ({
+        eye: piol.eye,
+        iolName: piol.iolModel || "IOL",
+        manufacturer: piol.manufacturerName || "",
+        surgeryDate: piol.surgeryDate
+          ? format(new Date(piol.surgeryDate), "dd/MM/yyyy")
+          : undefined,
+        refractiveTarget: piol.refractiveTarget ?? undefined,
+      }));
+
+      const LOGO_URL = "https://static.manus.space/webdev/defocus-app/logodefocusapp.webp";
+
+      const result = await exportPDFMutation.mutateAsync({
+        caseId: `${patientId}`,
+        iols: iolsList,
+        series,
+        logoUrl: LOGO_URL,
+      });
+
+      // Decode base64 and trigger download
+      const byteChars = atob(result.pdf);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+      const byteArray = new Uint8Array(byteNums);
+      const blob = new Blob([byteArray], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `DefocusApp_CASO-${patientId}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("PDF exportado com sucesso!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao gerar PDF. Tente novamente.");
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [patientId, exportPdfData, measurements, patientIols, exportPDFMutation]);
 
   const onSubmitIOL = (data: PatientIOLFormData) => {
     createPatientIOL.mutate({
@@ -445,12 +522,28 @@ export default function PatientDetail() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <Activity className="w-4 h-4 text-primary" />
-                    curva Defocus
+                    Curva Defocus
                   </CardTitle>
                   {measurements.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Selecione medições abaixo para visualizar
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground hidden sm:block">
+                        Selecione medições para visualizar
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1.5 bg-background"
+                        onClick={exportPDF}
+                        disabled={exportingPdf || exportPdfData.selectedIds.length === 0 || exportPdfData.chartData.length === 0}
+                      >
+                        {exportingPdf ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <FileDown className="w-3 h-3" />
+                        )}
+                        {exportingPdf ? "Gerando..." : "Exportar PDF"}
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardHeader>
@@ -472,7 +565,11 @@ export default function PatientDetail() {
                     </Button>
                   </div>
                 ) : (
-                  <DefocusChart patientId={patientId} measurements={measurements} />
+                  <DefocusChart
+                    patientId={patientId}
+                    measurements={measurements}
+                    onExportReady={handleExportReady}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -558,6 +655,28 @@ export default function PatientDetail() {
           </div>
         </div>
       </div>
+
+      {/* Hidden report for PDF export — rendered off-screen */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: "-9999px",
+          zIndex: -1,
+          pointerEvents: "none",
+        }}
+        aria-hidden="true"
+      >
+        <DefocusReportPDF
+          ref={reportRef}
+          patientId={patientId}
+          doctorName={user?.name ?? "Médico"}
+          measurements={measurements}
+          patientIols={patientIols as any}
+          selectedIds={exportPdfData.selectedIds}
+          chartData={exportPdfData.chartData}
+        />
+      </div>
     </DefocusLayout>
   );
 }
@@ -573,7 +692,15 @@ const VISION_ZONES = [
   { x1: -1.75,x2: -3.5,  fill: "#fef9c3", label: "Perto" },
 ];
 
-function DefocusChart({ patientId, measurements }: { patientId: number; measurements: any[] }) {
+function DefocusChart({
+  patientId,
+  measurements,
+  onExportReady,
+}: {
+  patientId: number;
+  measurements: any[];
+  onExportReady?: (selectedIds: number[], chartData: Record<string, any>[]) => void;
+}) {
   // All hooks MUST be called unconditionally at the top level
   const allIds = useMemo(() => measurements.map((m) => m.id), [measurements]);
 
@@ -668,6 +795,12 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
     if (!m) return `Medição ${id}`;
     return `${format(new Date(m.measurementDate), "dd/MM/yy")} ${m.eye}${m.iolModel ? ` · ${m.iolModel}` : ""}`;
   };
+
+  // Notify parent whenever selection or data changes
+  useEffect(() => {
+    if (onExportReady) onExportReady(selectedIds, chartData);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds, chartData]);
 
   return (
     <div className="space-y-4">
