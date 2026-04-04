@@ -598,13 +598,30 @@ function DefocusChart({ patientId, measurements }: { patientId: number; measurem
     if (!batchPoints) return [];
 
     // Group raw points by measurement id
-    const byId: Record<number, {x:number;y:number}[]> = {};
+    const rawById: Record<number, {x:number;y:number}[]> = {};
     batchPoints.forEach((pt) => {
       const id = pt.measurementId;
       const d = parseFloat(pt.diopter as any);
       const va = parseFloat(pt.visualAcuity as any);
-      if (!byId[id]) byId[id] = [];
-      byId[id].push({ x: d, y: decimalToLogMAR(va) });
+      if (isNaN(d) || isNaN(va) || va <= 0) return; // skip invalid points
+      if (!rawById[id]) rawById[id] = [];
+      rawById[id].push({ x: d, y: decimalToLogMAR(va) });
+    });
+
+    // Average duplicate diopter values (same x) to avoid NaN in spline
+    const byId: Record<number, {x:number;y:number}[]> = {};
+    Object.entries(rawById).forEach(([idStr, pts]) => {
+      const id = Number(idStr);
+      const grouped: Record<string, number[]> = {};
+      pts.forEach(p => {
+        const key = p.x.toFixed(2);
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(p.y);
+      });
+      byId[id] = Object.entries(grouped).map(([xStr, ys]) => ({
+        x: parseFloat(xStr),
+        y: ys.reduce((a, b) => a + b, 0) / ys.length,
+      }));
     });
 
     // Generate 100 dense interpolated points per selected measurement

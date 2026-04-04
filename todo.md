@@ -159,3 +159,8 @@
 
 ## Bug Fix - Contador Medições Registradas no Dashboard
 - [x] Corrigir contador "Medições Registradas" para exibir total global de medições de todos os pacientes
+
+## Bug Fix - NaN nos valores de acuidade visual
+- [x] Corrigir spline: pontos duplicados no mesmo diopter causavam NaN na interpolação
+- [x] Aplicar média dos pontos duplicados antes de construir o spline (PatientDetail + defocusCurve.ts)
+- [x] Dados no banco estão corretos (sem NaN); problema era no processamento client-side

@@ -174,12 +174,20 @@ export function generateDefocusCurve(
 ): InterpolatedPoint[] {
   if (rawPoints.length < 2) return [];
 
-  // Convert to logMAR for spline (logMAR is the scientifically correct scale)
-  const splineInput: SplinePoint[] = rawPoints
-    .filter((p) => p.visualAcuity > 0)
-    .map((p) => ({
-      x: p.diopter,
-      y: decimalToLogMAR(p.visualAcuity),
+  // Convert to logMAR and average duplicate diopter values to avoid NaN in spline
+  const grouped: Record<string, number[]> = {};
+  rawPoints
+    .filter((p) => p.visualAcuity > 0 && !isNaN(p.diopter) && !isNaN(p.visualAcuity))
+    .forEach((p) => {
+      const key = p.diopter.toFixed(2);
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(decimalToLogMAR(p.visualAcuity));
+    });
+
+  const splineInput: SplinePoint[] = Object.entries(grouped)
+    .map(([xStr, ys]) => ({
+      x: parseFloat(xStr),
+      y: ys.reduce((a, b) => a + b, 0) / ys.length,
     }))
     .sort((a, b) => a.x - b.x);
 
