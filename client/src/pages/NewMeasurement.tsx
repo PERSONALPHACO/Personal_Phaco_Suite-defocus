@@ -27,76 +27,16 @@ import { toast } from "sonner";
 import { useLocation, useParams } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import IOLCascadeSelect from "@/components/IOLCascadeSelect";
+import { parseVAInput, decimalToDisplay, type AVInputMode } from "@shared/vaParser";
 
 // Standard defocus curve diopter values (from +1.0 to -3.5 per clinical form)
 const DEFAULT_DIOPTERS = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5];
-
-type AVInputMode = "decimal" | "snellen" | "logmar";
 
 type MeasurementPoint = {
   diopter: number;
   visualAcuity: string;
 };
 
-// ─── VA conversion helpers ────────────────────────────────────────────────────
-
-// Lookup table from the clinical reference (logMAR → Snellen 20/x)
-const LOGMAR_TO_SNELLEN: [number, string][] = [
-  [-0.3, "20/10"], [-0.2, "20/13"], [-0.1, "20/16"],
-  [0.0, "20/20"], [0.1, "20/25"], [0.2, "20/32"],
-  [0.3, "20/40"], [0.4, "20/50"], [0.5, "20/63"],
-  [0.6, "20/80"], [0.7, "20/100"], [0.8, "20/126"],
-  [0.9, "20/159"], [1.0, "20/200"], [1.1, "20/252"],
-  [1.2, "20/317"], [1.3, "20/400"],
-];
-
-// Convert a decimal VA value to display string for the given mode
-function decimalToDisplay(decimal: number, mode: AVInputMode): string {
-  if (decimal <= 0) return "";
-  if (mode === "decimal") {
-    return String(parseFloat(decimal.toFixed(2)));
-  }
-  if (mode === "logmar") {
-    return parseFloat((-Math.log10(decimal)).toFixed(2)).toString();
-  }
-  if (mode === "snellen") {
-    // Find closest logMAR value in table
-    const logmar = -Math.log10(decimal);
-    let closest = LOGMAR_TO_SNELLEN[0];
-    let minDiff = Math.abs(logmar - LOGMAR_TO_SNELLEN[0][0]);
-    for (const entry of LOGMAR_TO_SNELLEN) {
-      const diff = Math.abs(logmar - entry[0]);
-      if (diff < minDiff) { minDiff = diff; closest = entry; }
-    }
-    return closest[1];
-  }
-  return "";
-}
-
-function parseVAInput(value: string, mode: AVInputMode): number | null {
-  if (!value.trim()) return null;
-  if (mode === "decimal") {
-    const n = parseFloat(value);
-    return isNaN(n) ? null : n;
-  }
-  if (mode === "logmar") {
-    const n = parseFloat(value);
-    if (isNaN(n)) return null;
-    return parseFloat(Math.pow(10, -n).toFixed(3));
-  }
-  if (mode === "snellen") {
-    const parts = value.split("/");
-    if (parts.length === 2) {
-      const num = parseFloat(parts[0]), den = parseFloat(parts[1]);
-      if (!isNaN(num) && !isNaN(den) && den > 0) return parseFloat((num / den).toFixed(3));
-    }
-    // Allow bare denominator (e.g. "40" → 20/40)
-    const den = parseFloat(value);
-    if (!isNaN(den) && den > 0) return parseFloat((20 / den).toFixed(3));
-    return null;
-  }
-  return null;
-}
 
 const SNELLEN_COMMON = ["20/10", "20/15", "20/20", "20/25", "20/30", "20/40", "20/50", "20/60", "20/80", "20/100", "20/200"];
 const LOGMAR_COMMON = ["-0.30", "-0.18", "-0.10", "0.00", "0.10", "0.18", "0.20", "0.30", "0.40", "0.50", "0.60", "0.70", "0.80", "1.00"];

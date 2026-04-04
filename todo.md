@@ -144,3 +144,9 @@
 - [x] Boxes devem exibir o valor no formato selecionado (Decimal, Snellen 20/x, logMAR)
 - [x] Implementar funções de conversão: decimal→Snellen, decimal→logMAR para exibição
 - [x] Valor armazenado internamente sempre em decimal; exibição convertida conforme formato
+
+## Bug Fix - Parser Snellen Formato Concatenado
+- [x] Aceitar "2020" como 20/20, "2040" como 20/40, "20200" como 20/200
+- [x] Lógica: se número >= 2000, interpretar como 20 + denominador (ex: 2040 → num=20, den=40)
+- [x] Manter compatibilidade com formatos existentes: "20/40", "40" (bare denominator)
+- [x] 24 testes unitários adicionados para cobrir todos os formatos Snellen
