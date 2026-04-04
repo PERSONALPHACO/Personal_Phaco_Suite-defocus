@@ -16,6 +16,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Admin from "./pages/Admin";
+import AdminUserDetail from "./pages/AdminUserDetail";
 
 function Router() {
   return (
@@ -31,6 +33,8 @@ function Router() {
       <Route path="/patients/:id/measurements/new" component={NewMeasurement} />
       <Route path="/iols" component={IOLs} />
       <Route path="/compare" component={Compare} />
+      <Route path="/admin/users/:id" component={AdminUserDetail} />
+      <Route path="/admin" component={Admin} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

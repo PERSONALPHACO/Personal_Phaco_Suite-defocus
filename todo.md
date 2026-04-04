@@ -208,14 +208,13 @@
 - [ ] Backend: procedures de escrita devem verificar ownership antes de modificar
 
 ## Feature - Dashboard Administrativo
-- [ ] Backend: adminProcedure para listar todos os usuários com contagem de pacientes e medições
-- [ ] Backend: adminProcedure para ver pacientes e resultados de um usuário específico
-- [ ] Backend: adminProcedure para ver estatísticas agregadas por IOL (todos os usuários)
-- [ ] Frontend: rota /admin protegida por role=admin
-- [ ] Frontend: página /admin com lista de médicos cadastrados e seus stats
-- [ ] Frontend: página /admin/users/:id com detalhes do médico (pacientes, medições, IOLs usadas)
-- [ ] Frontend: página /admin/iols com ranking de IOLs por desempenho agregado
-- [ ] Frontend: sidebar do admin separada do sidebar do médico
+- [x] Backend: adminProcedure para listar todos os usuários com contagem de pacientes e medições
+- [x] Backend: adminProcedure para ver pacientes e resultados de um usuário específico
+- [x] Backend: adminProcedure para ver estatísticas agregadas por IOL (todos os usuários)
+- [x] Frontend: rota /admin protegida por role=admin (redireciona não-admins para /dashboard)
+- [x] Frontend: página /admin com lista de médicos cadastrados, stats globais e ranking de IOLs
+- [x] Frontend: página /admin/users/:id com detalhes do médico (pacientes anonimizados, IOLs usadas)
+- [x] Sidebar: link "Painel Admin" em âmbar visível apenas para role=admin
 
 ## Feature - Recuperação de Senha por E-mail
 - [x] Verificar serviço de e-mail: usando Resend API (3.000 e-mails/mês grátis)
@@ -254,3 +253,15 @@
 - [x] Relatório anonimizado: sem nome do paciente, apenas ID do caso
 - [x] Inclui: logo DefocusApp, nome do médico, data/hora, tabela de IOLs, gráfico SVG, aviso LGPD
 - [x] PDF verificado: 114KB, 1 página A4, logo e gráfico renderizados corretamente
+
+## Feature - Dashboard Administrativo (Implementação)
+- [ ] Backend: adminProcedure (verifica role=admin, lança FORBIDDEN se não for)
+- [ ] Backend: admin.listUsers — todos os médicos com contagem de pacientes e medições
+- [ ] Backend: admin.userDetail — detalhes de um médico (pacientes, IOLs usadas, medições)
+- [ ] Backend: admin.iolStats — ranking de IOLs por número de usos e desempenho médio
+- [ ] Frontend: rota /admin protegida por role=admin (redireciona para /dashboard se não for admin)
+- [ ] Frontend: página /admin — lista de médicos com stats (pacientes, medições, última atividade)
+- [ ] Frontend: página /admin/users/:id — detalhes do médico (pacientes e IOLs usadas)
+- [ ] Frontend: página /admin/iols — ranking de IOLs por frequência de uso
+- [ ] Frontend: link "Admin" na sidebar apenas para usuários com role=admin
+- [ ] Promover usuário atual (Renato Fernandes) a admin via SQL

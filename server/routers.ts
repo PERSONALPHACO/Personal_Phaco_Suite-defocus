@@ -576,5 +576,31 @@ export const appRouter = router({
   }),
 });
 
-export type AppRouter = typeof appRouter;
+// ─── Admin Router ────────────────────────────────────────────────────────────
+
+const adminRouter = router({
+  listUsers: adminProcedure.query(async () => {
+    return await adminGetAllUsers();
+  }),
+
+  userDetail: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .query(async ({ input }) => {
+      const detail = await adminGetUserDetail(input.userId);
+      if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
+      return detail;
+    }),
+
+  iolStats: adminProcedure.query(async () => {
+    return await adminGetIOLStats();
+  }),
+});
+
+export const appRouter2 = router({
+  ...appRouter._def.record,
+  admin: adminRouter,
+});
+
+export type AppRouter = typeof appRouter2;
+
 

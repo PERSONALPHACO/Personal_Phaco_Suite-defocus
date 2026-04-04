@@ -200,6 +200,26 @@ function DefocusLayoutContent({
                   </SidebarMenuItem>
                 );
               })}
+              {user?.role === "admin" && (() => {
+                const isActive = location === "/admin" || location.startsWith("/admin/");
+                return (
+                  <SidebarMenuItem key="/admin">
+                    <SidebarMenuButton
+                      isActive={isActive}
+                      onClick={() => setLocation("/admin")}
+                      tooltip="Painel Admin"
+                      className={`h-10 rounded-lg transition-all font-medium text-sm ${
+                        isActive
+                          ? "bg-amber-600 text-white hover:bg-amber-700"
+                          : "text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                      }`}
+                    >
+                      <Shield className={`h-4 w-4 shrink-0 ${isActive ? "" : "opacity-80"}`} />
+                      <span>Painel Admin</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })()}
             </SidebarMenu>
           </SidebarContent>
 
