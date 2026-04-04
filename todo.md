@@ -150,3 +150,9 @@
 - [x] Lógica: se número >= 2000, interpretar como 20 + denominador (ex: 2040 → num=20, den=40)
 - [x] Manter compatibilidade com formatos existentes: "20/40", "40" (bare denominator)
 - [x] 24 testes unitários adicionados para cobrir todos os formatos Snellen
+
+## UX - Campos Select no Formulário de IOL
+- [x] Campo "Material": converter de input texto para Select com opções predefinidas (hidrofílico, hidrofóbico, PMMA, silicone, etc.)
+- [x] Campo "Design Óptico": converter de input texto para Select com opções predefinidas (difractivo, refrativo, EDOF, etc.)
+- [x] Manter compatibilidade com valores já salvos no banco
+- [x] Constantes centralizadas em client/src/lib/iolConstants.ts com helpers getMaterialLabel e getOpticDesignLabel

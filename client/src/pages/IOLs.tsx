@@ -27,14 +27,13 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import IOLDetailSheet from "@/components/IOLDetailSheet";
-
-const IOL_TYPES = [
-  { value: "monofocal", label: "Monofocal", color: "bg-slate-100 text-slate-700 border-slate-200" },
-  { value: "bifocal", label: "Bifocal", color: "bg-blue-100 text-blue-700 border-blue-200" },
-  { value: "trifocal", label: "Trifocal", color: "bg-primary/10 text-primary border-primary/20" },
-  { value: "edof", label: "EDOF", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  { value: "toric", label: "Tórica", color: "bg-amber-100 text-amber-700 border-amber-200" },
-];
+import {
+  IOL_TYPES,
+  IOL_MATERIALS,
+  IOL_OPTIC_DESIGNS,
+  getMaterialLabel,
+  getOpticDesignLabel,
+} from "@/lib/iolConstants";
 
 type IOLFormData = {
   manufacturerId: string;
@@ -200,13 +199,17 @@ function IOLCard({
           {iol.opticDesign && (
             <div className="flex items-start gap-2">
               <span className="text-xs text-muted-foreground w-20 shrink-0">Design:</span>
-              <span className="text-xs text-foreground">{iol.opticDesign}</span>
+              <span className="text-xs text-foreground">
+                {getOpticDesignLabel(iol.opticDesign)}
+              </span>
             </div>
           )}
           {iol.material && (
             <div className="flex items-start gap-2">
               <span className="text-xs text-muted-foreground w-20 shrink-0">Material:</span>
-              <span className="text-xs text-foreground">{iol.material}</span>
+              <span className="text-xs text-foreground">
+                {getMaterialLabel(iol.material)}
+              </span>
             </div>
           )}
         </div>
@@ -370,18 +373,40 @@ export default function IOLs() {
 
                   <div className="space-y-1.5">
                     <Label>Material</Label>
-                    <Input
-                      {...register("material")}
-                      placeholder="Ex: Hydrophobic acrylic"
-                    />
+                    <Select
+                      onValueChange={(val) => setValue("material", val)}
+                      defaultValue=""
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o material" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {IOL_MATERIALS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="col-span-2 space-y-1.5">
                     <Label>Design Óptico</Label>
-                    <Input
-                      {...register("opticDesign")}
-                      placeholder="Ex: Trifocal diffractive"
-                    />
+                    <Select
+                      onValueChange={(val) => setValue("opticDesign", val)}
+                      defaultValue=""
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o design óptico" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {IOL_OPTIC_DESIGNS.map((d) => (
+                          <SelectItem key={d.value} value={d.value}>
+                            {d.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="col-span-2 space-y-1.5">

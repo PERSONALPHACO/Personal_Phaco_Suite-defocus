@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { getMaterialLabel, getOpticDesignLabel } from "@/lib/iolConstants";
 import {
   LineChart,
   Line,
@@ -228,13 +229,17 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
             {iol.opticDesign && (
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-muted-foreground">Design:</span>
-                <span className="font-medium text-foreground">{iol.opticDesign}</span>
+                <span className="font-medium text-foreground">
+                  {getOpticDesignLabel(iol.opticDesign)}
+                </span>
               </div>
             )}
             {iol.material && (
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-muted-foreground">Material:</span>
-                <span className="font-medium text-foreground">{iol.material}</span>
+                <span className="font-medium text-foreground">
+                  {getMaterialLabel(iol.material)}
+                </span>
               </div>
             )}
           </div>
