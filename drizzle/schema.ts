@@ -23,6 +23,8 @@ export const users = mysqlTable("users", {
   // Email/password auth fields
   passwordHash: varchar("passwordHash", { length: 256 }),
   emailVerified: boolean("emailVerified").default(false).notNull(),
+  // Professional registration
+  crm: varchar("crm", { length: 20 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

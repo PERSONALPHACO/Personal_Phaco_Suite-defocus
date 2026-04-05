@@ -18,6 +18,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Admin from "./pages/Admin";
 import AdminUserDetail from "./pages/AdminUserDetail";
+import AdminIOLDetail from "./pages/AdminIOLDetail";
+import Profile from "./pages/Profile";
 
 function Router() {
   return (
@@ -34,7 +36,9 @@ function Router() {
       <Route path="/iols" component={IOLs} />
       <Route path="/compare" component={Compare} />
       <Route path="/admin/users/:id" component={AdminUserDetail} />
+      <Route path="/admin/iols/:id" component={AdminIOLDetail} />
       <Route path="/admin" component={Admin} />
+      <Route path="/profile" component={Profile} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

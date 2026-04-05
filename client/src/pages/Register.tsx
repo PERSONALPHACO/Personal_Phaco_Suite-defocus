@@ -32,6 +32,7 @@ export default function Register() {
   const [, navigate] = useLocation();
   const { user, loading } = useAuth();
   const [name, setName] = useState("");
+  const [crm, setCrm] = useState("");
 
   // Redirect already-authenticated users to dashboard
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function Register() {
       return;
     }
 
-    registerMutation.mutate({ name: name.trim(), email, password });
+    registerMutation.mutate({ name: name.trim(), email, password, crm: crm.trim() || undefined });
   };
 
   return (
@@ -126,6 +127,21 @@ export default function Register() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoComplete="name"
+                  className="bg-slate-800/60 border-slate-600/50 text-white placeholder:text-slate-500 focus:border-primary focus:ring-primary/20"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="crm" className="text-slate-300 text-sm">
+                  CRM <span className="text-slate-500 font-normal">(opcional)</span>
+                </Label>
+                <Input
+                  id="crm"
+                  type="text"
+                  placeholder="Ex: CRM/SP 123456"
+                  value={crm}
+                  onChange={(e) => setCrm(e.target.value)}
+                  maxLength={20}
                   className="bg-slate-800/60 border-slate-600/50 text-white placeholder:text-slate-500 focus:border-primary focus:ring-primary/20"
                 />
               </div>

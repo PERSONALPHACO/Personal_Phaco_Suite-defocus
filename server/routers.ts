@@ -17,6 +17,7 @@ import {
   adminGetUserDetail,
   adminGetIOLStats,
   adminGetAllAdminEmails,
+  adminGetIOLCurve,
   createPasswordResetToken,
   getValidPasswordResetToken,
   markPasswordResetTokenUsed,
@@ -47,6 +48,7 @@ import {
   getMeasurementCountByUser,
   getUserByEmail,
   createUserWithPassword,
+  updateUserProfile,
 } from "./db";
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
@@ -73,6 +75,7 @@ export const appRouter = router({
           name: z.string().min(2).max(128),
           email: z.string().email(),
           password: z.string().min(8).max(128),
+          crm: z.string().max(20).optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -82,7 +85,7 @@ export const appRouter = router({
           throw new TRPCError({ code: "CONFLICT", message: "E-mail já cadastrado. Faça login ou use outro e-mail." });
         }
         const passwordHash = await bcrypt.hash(input.password, 12);
-        await createUserWithPassword({ name: input.name, email: input.email, passwordHash });
+        await createUserWithPassword({ name: input.name, email: input.email, passwordHash, crm: input.crm });
         // Fetch the created user and create session
         const user = await getUserByEmail(input.email);
         if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar conta." });
@@ -138,6 +141,55 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+
+    /**
+     * Atualiza perfil do médico: nome, email e/ou senha.
+     * Requer senha atual para qualquer alteração.
+     */
+    updateProfile: protectedProcedure
+      .input(z.object({
+        name: z.string().min(2).max(128).optional(),
+        email: z.string().email().optional(),
+        currentPassword: z.string().min(1).optional(),
+        newPassword: z.string().min(8).max(128).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const user = ctx.user;
+        if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+        // If changing password, validate current password
+        if (input.newPassword) {
+          if (!input.currentPassword) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Informe a senha atual para alterar a senha." });
+          }
+          if (!user.passwordHash) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Esta conta não usa senha. Use o método de login original." });
+          }
+          const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+          if (!valid) {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Senha atual incorreta." });
+          }
+        }
+
+        // If changing email, check if new email is already in use
+        if (input.email && input.email !== user.email) {
+          const existing = await getUserByEmail(input.email);
+          if (existing && existing.id !== user.id) {
+            throw new TRPCError({ code: "CONFLICT", message: "Este e-mail já está em uso por outra conta." });
+          }
+        }
+
+        // Apply updates
+        const profileUpdates: { name?: string; email?: string; passwordHash?: string } = {};
+        if (input.name && input.name !== user.name) profileUpdates.name = input.name;
+        if (input.email && input.email !== user.email) profileUpdates.email = input.email;
+        if (input.newPassword) {
+          profileUpdates.passwordHash = await bcrypt.hash(input.newPassword, 12);
+        }
+
+        await updateUserProfile(user.id, profileUpdates);
+        return { success: true };
+      }),
 
     /**
      * Solicita redefinição de senha: gera token e envia e-mail.
@@ -221,6 +273,7 @@ export const appRouter = router({
           manufacturerId: z.number(),
           model: z.string().min(1).max(128),
           type: iolTypeEnum,
+          aConstant: z.string().max(10).optional(),
           material: z.string().max(64).optional(),
           opticDesign: z.string().max(128).optional(),
           powerRange: z.string().max(64).optional(),
@@ -238,6 +291,7 @@ export const appRouter = router({
           id: z.number(),
           model: z.string().min(1).max(128).optional(),
           type: iolTypeEnum.optional(),
+          aConstant: z.string().max(10).optional(),
           material: z.string().max(64).optional(),
           opticDesign: z.string().max(128).optional(),
           powerRange: z.string().max(64).optional(),
@@ -594,6 +648,12 @@ const adminRouter = router({
   iolStats: adminProcedure.query(async () => {
     return await adminGetIOLStats();
   }),
+
+  iolCurve: adminProcedure
+    .input(z.object({ iolId: z.number() }))
+    .query(async ({ input }) => {
+      return await adminGetIOLCurve(input.iolId);
+    }),
 });
 
 export const appRouter2 = router({

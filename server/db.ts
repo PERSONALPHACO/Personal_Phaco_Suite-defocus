@@ -94,6 +94,7 @@ export async function createUserWithPassword(data: {
   name: string;
   email: string;
   passwordHash: string;
+  crm?: string;
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -103,6 +104,7 @@ export async function createUserWithPassword(data: {
     name: data.name,
     email: data.email,
     passwordHash: data.passwordHash,
+    crm: data.crm ?? null,
     loginMethod: "email",
     emailVerified: false,
     lastSignedIn: new Date(),
@@ -715,4 +717,68 @@ export async function adminGetAllAdminEmails(): Promise<{ email: string; name: s
     .from(users)
     .where(and(eq(users.role, "admin"), sql`${users.email} IS NOT NULL`));
   return rows.filter((r) => r.email !== null) as { email: string; name: string | null }[];
+}
+
+/**
+ * Admin: Curva Defocus média de uma IOL específica
+ * Agrega todos os pontos de medição de todos os usos daquela IOL na plataforma.
+ * Retorna média e desvio padrão de visualAcuity por diopter.
+ */
+export async function adminGetIOLCurve(iolId: number) {
+  const db = await getDb();
+  if (!db) return { points: [], caseCount: 0, doctorCount: 0 };
+
+  // Buscar todos os pontos via: measurement_points → measurements → patient_iols (iolId)
+  const rows = await db
+    .select({
+      diopter: measurementPoints.diopter,
+      visualAcuity: measurementPoints.visualAcuity,
+      measurementId: measurementPoints.measurementId,
+      userId: measurements.userId,
+    })
+    .from(measurementPoints)
+    .innerJoin(measurements, eq(measurementPoints.measurementId, measurements.id))
+    .innerJoin(patientIols, eq(measurements.patientIolId, patientIols.id))
+    .where(eq(patientIols.iolId, iolId))
+    .orderBy(asc(measurementPoints.diopter));
+
+  if (rows.length === 0) return { points: [], caseCount: 0, doctorCount: 0 };
+
+  // Agrupar por diopter e calcular média + desvio padrão
+  const grouped = new Map<number, number[]>();
+  for (const row of rows) {
+    const d = Number(row.diopter);
+    const va = Number(row.visualAcuity);
+    if (!grouped.has(d)) grouped.set(d, []);
+    grouped.get(d)!.push(va);
+  }
+
+  const points = Array.from(grouped.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([diopter, values]) => {
+      const avg = values.reduce((s, v) => s + v, 0) / values.length;
+      const stdDev = values.length > 1
+        ? Math.sqrt(values.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / (values.length - 1))
+        : 0;
+      return { diopter, avgVisualAcuity: avg, stdDev, count: values.length };
+    });
+
+  // Contar casos e médicos distintos
+  const caseCount = new Set(rows.map((r) => r.measurementId)).size;
+  const doctorCount = new Set(rows.map((r) => r.userId)).size;
+
+  return { points, caseCount, doctorCount };
+}
+
+/**
+ * Atualiza campos do perfil do usuário (nome, email, passwordHash).
+ */
+export async function updateUserProfile(
+  userId: number,
+  updates: { name?: string; email?: string; passwordHash?: string }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (Object.keys(updates).length === 0) return;
+  await db.update(users).set(updates).where(eq(users.id, userId));
 }

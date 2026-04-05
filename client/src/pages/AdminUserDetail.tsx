@@ -98,10 +98,15 @@ export default function AdminUserDetail() {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">{detail.user.name || "Sem nome"}</h1>
                 <p className="text-sm text-muted-foreground">{detail.user.email}</p>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <Badge variant="outline" className={detail.user.role === "admin" ? "border-amber-400 text-amber-600 bg-amber-50" : "border-blue-200 text-blue-600 bg-blue-50"}>
                     {detail.user.role === "admin" ? "Administrador" : "Médico"}
                   </Badge>
+                  {(detail.user as any).crm && (
+                    <Badge variant="outline" className="border-slate-200 text-slate-600 bg-slate-50 font-mono text-xs">
+                      CRM: {(detail.user as any).crm}
+                    </Badge>
+                  )}
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
                     Cadastro: {formatDate(detail.user.createdAt)}

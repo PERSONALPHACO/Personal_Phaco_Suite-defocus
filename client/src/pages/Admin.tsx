@@ -220,11 +220,16 @@ export default function Admin() {
                       <TableHead className="text-xs">IOL</TableHead>
                       <TableHead className="text-xs text-center">Usos</TableHead>
                       <TableHead className="text-xs text-center">Médicos</TableHead>
+                      <TableHead className="w-8"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {iolStats.slice(0, 15).map((iol, idx) => (
-                      <TableRow key={iol.iolId} className="hover:bg-muted/50">
+                      <TableRow
+                        key={iol.iolId}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setLocation(`/admin/iols/${iol.iolId}`)}
+                      >
                         <TableCell className="text-xs font-bold text-muted-foreground">{idx + 1}</TableCell>
                         <TableCell>
                           <div>
@@ -244,6 +249,9 @@ export default function Admin() {
                         </TableCell>
                         <TableCell className="text-center">
                           <span className="text-sm text-muted-foreground">{Number(iol.totalDoctors)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </TableCell>
                       </TableRow>
                     ))}

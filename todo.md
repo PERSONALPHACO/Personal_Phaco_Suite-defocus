@@ -265,3 +265,36 @@
 - [ ] Frontend: página /admin/iols — ranking de IOLs por frequência de uso
 - [ ] Frontend: link "Admin" na sidebar apenas para usuários com role=admin
 - [ ] Promover usuário atual (Renato Fernandes) a admin via SQL
+
+## Feature - Curva Média por IOL no Admin
+- [x] Backend: procedure admin.iolCurve(iolId) que agrega pontos de todas as medições daquela IOL e retorna a média por diopter
+- [x] Backend: inclui contagem de casos e médicos distintos na resposta
+- [x] Frontend: cada linha do ranking de IOLs no /admin é clicável (cursor pointer + seta ChevronRight)
+- [x] Frontend: navega para /admin/iols/:id com gráfico da curva Defocus média
+- [x] Frontend: gráfico exibe curva média + faixa de desvio padrão, número de casos e médicos
+- [x] Nota: curva aparece vazia pois as 78 medições existentes têm patientIolId=null (medições sem implante vinculado)
+
+## Feature - Campo Constante A no Formulário de IOL
+- [x] Verificar que coluna aConstant já existe na tabela iols
+- [x] Adicionar campo "Constante A" no modal de criação de IOL
+- [x] Adicionar campo "Constante A" no modal de edição de IOL
+- [x] Exibir Constante A no IOLDetailSheet e nos cards de IOL
+- [x] Atualizar procedures createIOL e updateIOL para incluir aConstant
+- [x] Testes: verificar que aConstant é salvo e retornado corretamente
+
+## Feature - Campo CRM no Cadastro de Médicos
+- [x] Adicionar coluna crm na tabela users (VARCHAR 20, nullable)
+- [x] Aplicar migration SQL
+- [x] Adicionar campo CRM na página de cadastro (/register)
+- [x] Atualizar procedure auth.register para salvar crm
+- [x] Exibir CRM na página de detalhe do médico no admin
+- [x] Testes: verificar que crm é salvo no cadastro
+
+## Feature - Página de Perfil do Médico (/profile)
+- [x] Criar página /profile com formulário de edição de nome, email e senha
+- [x] Backend: procedure auth.updateProfile (name, email, currentPassword, newPassword)
+- [x] Validar senha atual antes de permitir alterações
+- [x] Exibir CRM (somente leitura) na página de perfil
+- [x] Link "Meu Perfil" na sidebar (abaixo do nome do usuário)
+- [x] Registrar rota /profile no App.tsx
+- [x] Testes: verificar atualização de nome, email e senha

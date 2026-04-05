@@ -56,6 +56,7 @@ type IOLFormData = {
   manufacturerId: string;
   model: string;
   type: string;
+  aConstant: string;
   material: string;
   opticDesign: string;
   powerRange: string;
@@ -360,6 +361,7 @@ export default function IOLs() {
       manufacturerId: parseInt(data.manufacturerId),
       model: data.model,
       type: data.type as any,
+      aConstant: data.aConstant || undefined,
       material: data.material || undefined,
       opticDesign: data.opticDesign || undefined,
       powerRange: data.powerRange || undefined,
@@ -373,6 +375,7 @@ export default function IOLs() {
       id: editingIOL.id,
       model: data.model,
       type: data.type as any,
+      aConstant: data.aConstant || undefined,
       material: data.material || undefined,
       opticDesign: data.opticDesign || undefined,
       powerRange: data.powerRange || undefined,
@@ -386,6 +389,7 @@ export default function IOLs() {
       manufacturerId: iol.manufacturerId.toString(),
       model: iol.model,
       type: iol.type,
+      aConstant: iol.aConstant || "",
       material: iol.material || "",
       opticDesign: iol.opticDesign || "",
       powerRange: iol.powerRange || "",
@@ -519,7 +523,17 @@ export default function IOLs() {
                     </Select>
                   </div>
 
-                  <div className="col-span-2 space-y-1.5">
+                  <div className="space-y-1.5">
+                    <Label>Constante A</Label>
+                    <Input
+                      {...register("aConstant")}
+                      placeholder="Ex: 118.4"
+                      type="number"
+                      step="0.1"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
                     <Label>Faixa de Poder (D)</Label>
                     <Input
                       {...register("powerRange")}
@@ -697,7 +711,17 @@ export default function IOLs() {
                 </Select>
               </div>
 
-              <div className="col-span-2 space-y-1.5">
+              <div className="space-y-1.5">
+                <Label>Constante A</Label>
+                <Input
+                  {...editRegister("aConstant")}
+                  placeholder="Ex: 118.4"
+                  type="number"
+                  step="0.1"
+                />
+              </div>
+
+              <div className="space-y-1.5">
                 <Label>Faixa de Poder (D)</Label>
                 <Input
                   {...editRegister("powerRange")}
