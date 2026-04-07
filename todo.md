@@ -196,16 +196,16 @@
 - [x] Frontend: botões da landing page redirecionam para /login
 
 ## Feature - Isolamento de Dados por Médico (Multi-tenancy)
-- [ ] Auditar todas as queries: pacientes, medições, patient_iols, comparações
-- [ ] Corrigir getPatientsByUser: já usa userId, confirmar que está correto
-- [ ] Corrigir getAllIOLs/getAllIOLsWithUsage: IOLs são globais (catálogo), mas patient_iols são por usuário
-- [ ] Corrigir getPatientById: garantir que só retorna paciente do userId autenticado
-- [ ] Corrigir getMeasurements: garantir que só retorna medições de pacientes do userId autenticado
-- [ ] Corrigir getPatientIols: garantir que só retorna IOLs de pacientes do userId autenticado
-- [ ] Corrigir getIOLComparisonData: garantir isolamento por userId
-- [ ] Corrigir getIOLCurves: garantir isolamento por userId
-- [ ] Backend: todas as procedures de leitura de dados clínicos devem ser protectedProcedure
-- [ ] Backend: procedures de escrita devem verificar ownership antes de modificar
+- [x] Auditar todas as queries: pacientes, medições, patient_iols, comparações
+- [x] Corrigir getPatientsByUser: já usa userId, confirmado correto
+- [x] Corrigir getAllIOLs/getAllIOLsWithUsage: IOLs são globais (catálogo), usageCount já filtrado por userIdient_iols são por usuário
+- [x] Corrigir getPatientById: já filtra por userId, confirmado correto
+- [x] Corrigir getMeasurements: já verifica ownership via getPatientById, confirmado corretoId autenticado
+- [x] Corrigir getPatientIols: já verifica ownership via getPatientById, confirmado corretoutenticado
+- [x] Corrigir getIOLComparisonData: dados anonimizados de IOL são globais por design (comparação de performance)
+- [x] Corrigir getIOLCurves: mudado de publicProcedure para protectedProcedure (requer autenticação)
+- [x] Backend: points, pointsBatch, defocusCurve, defocusCurveBatch agora verificam ownership do measurementIdrocedure
+- [x] Backend: updatePoints verifica ownership; delete procedures já verificavam
 
 ## Feature - Dashboard Administrativo
 - [x] Backend: adminProcedure para listar todos os usuários com contagem de pacientes e medições
@@ -255,16 +255,16 @@
 - [x] PDF verificado: 114KB, 1 página A4, logo e gráfico renderizados corretamente
 
 ## Feature - Dashboard Administrativo (Implementação)
-- [ ] Backend: adminProcedure (verifica role=admin, lança FORBIDDEN se não for)
-- [ ] Backend: admin.listUsers — todos os médicos com contagem de pacientes e medições
-- [ ] Backend: admin.userDetail — detalhes de um médico (pacientes, IOLs usadas, medições)
-- [ ] Backend: admin.iolStats — ranking de IOLs por número de usos e desempenho médio
-- [ ] Frontend: rota /admin protegida por role=admin (redireciona para /dashboard se não for admin)
-- [ ] Frontend: página /admin — lista de médicos com stats (pacientes, medições, última atividade)
-- [ ] Frontend: página /admin/users/:id — detalhes do médico (pacientes e IOLs usadas)
-- [ ] Frontend: página /admin/iols — ranking de IOLs por frequência de uso
-- [ ] Frontend: link "Admin" na sidebar apenas para usuários com role=admin
-- [ ] Promover usuário atual (Renato Fernandes) a admin via SQL
+- [x] Backend: adminProcedure (verifica role=admin, lança FORBIDDEN se não for)
+- [x] Backend: admin.listUsers — todos os médicos com contagem de pacientes e medições
+- [x] Backend: admin.userDetail — detalhes de um médico (pacientes, IOLs usadas, medições)
+- [x] Backend: admin.iolStats — ranking de IOLs por número de usos e desempenho médio
+- [x] Frontend: rota /admin protegida por role=admin (redireciona para /dashboard se não for)
+- [x] Frontend: página /admin — lista de médicos com stats (pacientes, medições, última atividade)
+- [x] Frontend: página /admin/users/:id — detalhes do médico (pacientes e IOLs usadas)
+- [x] Frontend: página /admin/iols/:id — detalhe da IOL com curva média
+- [x] Frontend: link "Painel Admin" na sidebar apenas para usuários com role=admin
+- [x] Promover usuário atual (Renato Fernandes) a admin via SQL — já era admin
 
 ## Feature - Curva Média por IOL no Admin
 - [x] Backend: procedure admin.iolCurve(iolId) que agrega pontos de todas as medições daquela IOL e retorna a média por diopter

@@ -312,14 +312,14 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    compare: publicProcedure
+    compare: protectedProcedure
       .input(z.object({ iolIds: z.array(z.number()).min(1).max(8) }))
       .query(async ({ input }) => {
         return getIOLComparisonData(input.iolIds);
       }),
 
     // Retorna todas as curvas reais de Defocus associadas a uma IOL específica
-    curves: publicProcedure
+    curves: protectedProcedure
       .input(z.object({ iolId: z.number() }))
       .query(async ({ input }) => {
         return getIOLCurves(input.iolId);
@@ -488,14 +488,26 @@ export const appRouter = router({
 
     points: protectedProcedure
       .input(z.object({ measurementId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        // Verify ownership before returning points
+        const m = await getMeasurementById(input.measurementId, ctx.user.id);
+        if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Medição não encontrada ou sem permissão." });
         return getMeasurementPoints(input.measurementId);
       }),
 
     /** Batch: retorna pontos de múltiplas medições de uma vez */
     pointsBatch: protectedProcedure
       .input(z.object({ measurementIds: z.array(z.number()) }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        if (input.measurementIds.length === 0) return [];
+        // Verify ALL measurements belong to the authenticated user (strict enforcement)
+        const owned = await Promise.all(
+          input.measurementIds.map((id) => getMeasurementById(id, ctx.user.id))
+        );
+        const unauthorized = input.measurementIds.filter((_, i) => owned[i] === null);
+        if (unauthorized.length > 0) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado a uma ou mais medições." });
+        }
         return getPointsForMeasurements(input.measurementIds);
       }),
 
@@ -508,7 +520,10 @@ export const appRouter = router({
         measurementId: z.number(),
         nPoints: z.number().min(20).max(500).default(100),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        // Verify ownership
+        const m = await getMeasurementById(input.measurementId, ctx.user.id);
+        if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Medição não encontrada ou sem permissão." });
         const rawPoints = await getMeasurementPoints(input.measurementId);
         const normalized = rawPoints.map((p) => ({
           diopter: parseFloat(p.diopter as any),
@@ -539,7 +554,15 @@ export const appRouter = router({
         measurementIds: z.array(z.number()),
         nPoints: z.number().min(20).max(500).default(100),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        // Verify ALL measurement IDs belong to the authenticated user (strict enforcement)
+        const owned = await Promise.all(
+          input.measurementIds.map((id) => getMeasurementById(id, ctx.user.id))
+        );
+        const unauthorized = input.measurementIds.filter((_, i) => owned[i] === null);
+        if (unauthorized.length > 0) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado a uma ou mais medições." });
+        }
         const results = await Promise.all(
           input.measurementIds.map(async (id) => {
             const rawPoints = await getMeasurementPoints(id);
@@ -580,6 +603,17 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { points, ...measurementData } = input;
 
+        // Verify patient ownership before creating measurement
+        const patient = await getPatientById(input.patientId, ctx.user.id);
+        if (!patient) throw new TRPCError({ code: "NOT_FOUND", message: "Paciente não encontrado ou sem permissão." });
+
+        // Verify patientIolId belongs to this patient (and thus this user)
+        if (input.patientIolId !== undefined) {
+          const patientIolList = await getPatientIOLs(input.patientId, ctx.user.id);
+          const validIol = patientIolList.find((pi) => pi.id === input.patientIolId);
+          if (!validIol) throw new TRPCError({ code: "NOT_FOUND", message: "IOL do paciente não encontrada ou sem permissão." });
+        }
+
         // Create measurement
         const result = await createMeasurement({
           ...measurementData,
@@ -615,7 +649,10 @@ export const appRouter = router({
           points: z.array(measurementPointSchema),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        // Verify ownership before updating points
+        const m = await getMeasurementById(input.measurementId, ctx.user.id);
+        if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Medição não encontrada ou sem permissão." });
         await deleteMeasurementPoints(input.measurementId);
         if (input.points.length > 0) {
           const pointsToInsert = input.points.map((p) => ({
