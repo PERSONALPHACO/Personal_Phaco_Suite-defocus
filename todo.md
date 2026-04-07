@@ -298,3 +298,6 @@
 - [x] Link "Meu Perfil" na sidebar (abaixo do nome do usuário)
 - [x] Registrar rota /profile no App.tsx
 - [x] Testes: verificar atualização de nome, email e senha
+
+## Feature - Monofocal Plus no Design Óptico
+- [x] Adicionar opção "Monofocal Plus" (value: monofocal_plus) à lista IOL_OPTIC_DESIGNS em iolConstants.ts

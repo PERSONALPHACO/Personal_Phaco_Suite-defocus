@@ -27,6 +27,7 @@ export const IOL_OPTIC_DESIGNS = [
   { value: "edof_refractive", label: "EDOF Refrativo" },
   { value: "edof_pinhole", label: "EDOF Pinhole" },
   { value: "monofocal_standard", label: "Monofocal Padrão" },
+  { value: "monofocal_plus", label: "Monofocal Plus" },
   { value: "monofocal_toric", label: "Monofocal Tórico" },
   { value: "trifocal_toric", label: "Trifocal Tórico" },
   { value: "edof_toric", label: "EDOF Tórico" },
