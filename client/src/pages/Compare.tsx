@@ -371,7 +371,7 @@ export default function Compare() {
                         {selectedIols.map((iol, idx) => (
                           <Line
                             key={iol.id}
-                            type="monotone"
+                            type="linear"
                             dataKey={`iol_${iol.id}`}
                             name={`${iol.model} (${IOL_TYPE_LABELS[iol.type] || iol.type})`}
                             stroke={CHART_COLORS[idx % CHART_COLORS.length]}
