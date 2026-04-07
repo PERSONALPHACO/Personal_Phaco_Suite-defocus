@@ -895,7 +895,7 @@ function DefocusChart({
               {selectedIds.map((id) => (
                 <Line
                   key={id}
-                  type="monotone"
+                  type="linear"
                   dataKey={`m_${id}`}
                   name={getMeasurementLabel(id)}
                   stroke={CHART_COLORS[measurements.findIndex((m) => m.id === id) % CHART_COLORS.length]}

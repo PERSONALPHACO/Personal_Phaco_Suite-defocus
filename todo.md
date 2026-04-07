@@ -301,3 +301,8 @@
 
 ## Feature - Monofocal Plus no Design Óptico
 - [x] Adicionar opção "Monofocal Plus" (value: monofocal_plus) à lista IOL_OPTIC_DESIGNS em iolConstants.ts
+
+## Bug Fix - Pico Artificial no Início da Curva Defocus
+- [x] Identificar onde a interpolação spline gera o pico em +1.0 D
+- [x] Corrigir: mudar type="monotone" para type="linear" no Recharts (dados já interpolados pela spline cúbica, dupla suavização causava o pico)
+- [x] Verificar que a curva publicada tem o mesmo padrão da pré-visualização
