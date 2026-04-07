@@ -435,7 +435,7 @@ export default function NewMeasurement() {
                         <ReferenceLine y={0.20} stroke="#ef4444" strokeDasharray="4 2" strokeWidth={1.5} />
                         <ReferenceLine x={0} stroke="#3b82f6" strokeDasharray="4 2" strokeWidth={1.5} />
                         <Line
-                          type="linear"
+                          type="monotone"
                           dataKey="va"
                           stroke="#7c3aed"
                           strokeWidth={2.5}
