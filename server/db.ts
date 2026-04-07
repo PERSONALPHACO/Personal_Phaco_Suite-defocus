@@ -467,20 +467,38 @@ export async function getIOLCurves(iolId: number) {
   const db = await getDb();
   if (!db) return { curves: [], count: 0 };
 
-  // Buscar todas as medições que usaram esta IOL
-  const measurementRows = await db
+  // Buscar todas as medições de pacientes que têm esta IOL implantada.
+  // Usa JOIN via patientId (não apenas patientIolId) para capturar medições
+  // registradas sem vínculo direto ao implante.
+  // Usa GROUP BY para deduplicar quando o paciente tem múltiplos implantes da mesma IOL.
+  const rawRows = await db
     .select({
       measurementId: measurements.id,
       measurementDate: measurements.measurementDate,
       eye: measurements.eye,
       notes: measurements.notes,
       patientIolId: measurements.patientIolId,
-      refractiveTarget: patientIols.refractiveTarget,
+      refractiveTarget: sql<string | null>`MIN(${patientIols.refractiveTarget})`,
     })
     .from(measurements)
-    .innerJoin(patientIols, eq(measurements.patientIolId, patientIols.id))
+    .innerJoin(patientIols, eq(patientIols.patientId, measurements.patientId))
     .where(eq(patientIols.iolId, iolId))
+    .groupBy(
+      measurements.id,
+      measurements.measurementDate,
+      measurements.eye,
+      measurements.notes,
+      measurements.patientIolId,
+    )
     .orderBy(desc(measurements.measurementDate));
+
+  // Deduplicar por measurementId (segurança extra)
+  const seen = new Set<number>();
+  const measurementRows = rawRows.filter((r) => {
+    if (seen.has(r.measurementId)) return false;
+    seen.add(r.measurementId);
+    return true;
+  });
 
   if (measurementRows.length === 0) return { curves: [], count: 0 };
 

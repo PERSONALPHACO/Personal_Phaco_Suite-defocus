@@ -317,3 +317,8 @@
 - [x] Causa raiz: spline cúbica (Fritsch-Carlson) oscila entre pontos esparsos (0.5D de intervalo), criando vale artificial entre +1.0 e +0.5 D
 - [x] Corrigir em PatientDetail.tsx: substituir monotonicSpline por linearInterp (interpolação linear)
 - [x] Corrigir em todos os outros componentes: mudar type="monotone" para type="linear" no Recharts (Compare, AdminIOLDetail, IOLDetailSheet, DefocusReportPDF, NewMeasurement)
+
+## Bug Fix - Curvas não aparecem no IOLDetailSheet
+- [x] Investigar query getIOLCurves: usava innerJoin via patientIolId (null na maioria das medições), retornando 0 curvas
+- [x] Corrigir: mudar JOIN para via patientId (pacientes que têm a IOL implantada), com GROUP BY para deduplicar
+- [x] Verificar que as curvas aparecem ao clicar na IOL (2 curvas para EMV Rayone confirmadas)
