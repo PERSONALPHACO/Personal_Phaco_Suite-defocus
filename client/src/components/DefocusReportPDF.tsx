@@ -452,7 +452,7 @@ const DefocusReportPDF = forwardRef<HTMLDivElement, Props>(
                     return (
                       <Line
                         key={id}
-                        type="monotone"
+                        type="linear"
                         dataKey={`m_${id}`}
                         name={m ? getMeasurementLabel(m) : `Medição ${id}`}
                         stroke={color}

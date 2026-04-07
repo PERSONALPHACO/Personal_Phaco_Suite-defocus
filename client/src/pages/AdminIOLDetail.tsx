@@ -235,7 +235,7 @@ export default function AdminIOLDetail() {
                         <ReferenceLine y={0.0} stroke="#10b981" strokeDasharray="4 4" label={{ value: "20/20", position: "right", fontSize: 10, fill: "#10b981" }} />
                         {/* Faixa de desvio padrão */}
                         <Area
-                          type="monotone"
+                          type="linear"
                           dataKey="upper"
                           fill="#3b82f620"
                           stroke="none"
@@ -243,7 +243,7 @@ export default function AdminIOLDetail() {
                           name="upper"
                         />
                         <Area
-                          type="monotone"
+                          type="linear"
                           dataKey="lower"
                           fill="#ffffff"
                           stroke="none"
@@ -252,7 +252,7 @@ export default function AdminIOLDetail() {
                         />
                         {/* Linha média */}
                         <Line
-                          type="monotone"
+                          type="linear"
                           dataKey="avg"
                           stroke="#3b82f6"
                           strokeWidth={2.5}

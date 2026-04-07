@@ -312,3 +312,8 @@
 - [x] CSV inclui: ID, Nome, Email, CRM, Perfil, Método Login, Data Cadastro, Último Acesso, Total Pacientes, Total Medições
 - [x] Frontend: botão "Exportar CSV" na página /admin com download automático
 - [x] Geração do CSV no frontend via Blob com BOM UTF-8 para compatibilidade com Excel
+
+## Bug Fix - Pico Artificial no Início da Curva (Revisão)
+- [x] Causa raiz: spline cúbica (Fritsch-Carlson) oscila entre pontos esparsos (0.5D de intervalo), criando vale artificial entre +1.0 e +0.5 D
+- [x] Corrigir em PatientDetail.tsx: substituir monotonicSpline por linearInterp (interpolação linear)
+- [x] Corrigir em todos os outros componentes: mudar type="monotone" para type="linear" no Recharts (Compare, AdminIOLDetail, IOLDetailSheet, DefocusReportPDF, NewMeasurement)

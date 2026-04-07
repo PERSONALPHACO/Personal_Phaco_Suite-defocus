@@ -96,25 +96,19 @@ function logMARToSnellen(l: number): string {
   return `20/${Math.round(20 * Math.pow(10, l))}`;
 }
 
-// Monotone cubic spline (Fritsch–Carlson) — client-side for live preview
-function monotonicSpline(pts: {x:number;y:number}[]): (x:number)=>number {
+// Linear interpolation between measurement points
+// Cubic splines cause artificial oscillations with sparse data (10 points at 0.5D intervals)
+function linearInterp(pts: {x:number;y:number}[]): (x:number)=>number {
   const n = pts.length;
   const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
-  const delta = xs.slice(0,-1).map((_,i)=>(ys[i+1]-ys[i])/(xs[i+1]-xs[i]));
-  const m: number[] = new Array(n);
-  m[0]=delta[0]; m[n-1]=delta[n-2];
-  for(let i=1;i<n-1;i++) m[i]=(delta[i-1]+delta[i])/2;
-  for(let i=0;i<n-1;i++){
-    if(Math.abs(delta[i])<1e-12){m[i]=0;m[i+1]=0;}
-    else{const a=m[i]/delta[i],b=m[i+1]/delta[i],t=a*a+b*b;
-      if(t>9){const s=3/Math.sqrt(t);m[i]=s*a*delta[i];m[i+1]=s*b*delta[i];}}
-  }
   return (x:number)=>{
-    if(x<=xs[0])return ys[0]; if(x>=xs[n-1])return ys[n-1];
-    let lo=0,hi=n-2;
-    while(lo<hi){const mid=Math.floor((lo+hi)/2);if(xs[mid]<x)lo=mid+1;else hi=mid;}
-    const i=Math.max(0,lo-1),h=xs[i+1]-xs[i],t=(x-xs[i])/h,t2=t*t,t3=t2*t;
-    return (2*t3-3*t2+1)*ys[i]+(t3-2*t2+t)*h*m[i]+(-2*t3+3*t2)*ys[i+1]+(t3-t2)*h*m[i+1];
+    if(x<=xs[0])return ys[0];
+    if(x>=xs[n-1])return ys[n-1];
+    // Find the segment containing x
+    let i=0;
+    while(i<n-2 && xs[i+1]<x) i++;
+    const t=(x-xs[i])/(xs[i+1]-xs[i]);
+    return ys[i]*(1-t)+ys[i+1]*t;
   };
 }
 
@@ -761,7 +755,7 @@ function DefocusChart({
     const splines: Record<number, ((x:number)=>number) | null> = {};
     selectedIds.forEach((id) => {
       const pts = (byId[id] ?? []).sort((a,b)=>a.x-b.x);
-      splines[id] = pts.length >= 2 ? monotonicSpline(pts) : null;
+      splines[id] = pts.length >= 2 ? linearInterp(pts) : null;
     });
 
     // Determine x range from actual data

@@ -372,7 +372,7 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                     {curves.map((curve, idx) => (
                       <Line
                         key={curve.measurementId}
-                        type="monotone"
+                        type="linear"
                         dataKey={`curve_${idx}`}
                         name={`Curva ${idx + 1} (${EYE_LABELS[curve.eye] || curve.eye})`}
                         stroke={CHART_COLORS[idx % CHART_COLORS.length]}
@@ -452,7 +452,7 @@ export default function IOLDetailSheet({ iol, open, onOpenChange }: IOLDetailShe
                           strokeWidth={1.5}
                         />
                         <Line
-                          type="monotone"
+                          type="linear"
                           dataKey="mean"
                           name="Média"
                           stroke="#2563eb"
