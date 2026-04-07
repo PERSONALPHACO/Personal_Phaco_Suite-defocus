@@ -12,12 +12,12 @@ import { generatePDFReport, type PDFReportData } from "./pdfGenerator";
 import {
   getAllManufacturers,
   createManufacturer,
-  getAllIOLs,
   adminGetAllUsers,
   adminGetUserDetail,
   adminGetIOLStats,
-  adminGetAllAdminEmails,
   adminGetIOLCurve,
+  adminExportUsersCsv,
+  adminGetAllAdminEmails,
   createPasswordResetToken,
   getValidPasswordResetToken,
   markPasswordResetTokenUsed,
@@ -691,6 +691,11 @@ const adminRouter = router({
     .query(async ({ input }) => {
       return await adminGetIOLCurve(input.iolId);
     }),
+
+  exportUsersCsv: adminProcedure.query(async () => {
+    const csv = await adminExportUsersCsv();
+    return { csv };
+  }),
 });
 
 export const appRouter2 = router({

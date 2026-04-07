@@ -567,6 +567,7 @@ export async function adminGetAllUsers() {
       id: users.id,
       name: users.name,
       email: users.email,
+      crm: users.crm,
       role: users.role,
       loginMethod: users.loginMethod,
       createdAt: users.createdAt,
@@ -577,9 +578,61 @@ export async function adminGetAllUsers() {
     .from(users)
     .leftJoin(patients, eq(patients.userId, users.id))
     .leftJoin(measurements, eq(measurements.userId, users.id))
-    .groupBy(users.id, users.name, users.email, users.role, users.loginMethod, users.createdAt, users.lastSignedIn)
+    .groupBy(users.id, users.name, users.email, users.crm, users.role, users.loginMethod, users.createdAt, users.lastSignedIn)
     .orderBy(desc(users.createdAt));
   return rows;
+}
+
+/**
+ * Admin: exporta lista de médicos com estatísticas em formato CSV.
+ */
+export async function adminExportUsersCsv(): Promise<string> {
+  const rows = await adminGetAllUsers();
+
+  const escape = (val: unknown): string => {
+    if (val === null || val === undefined) return "";
+    const str = String(val);
+    // Wrap in quotes if contains comma, quote, or newline
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const formatDate = (d: Date | null | undefined): string => {
+    if (!d) return "";
+    return new Date(d).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  };
+
+  const header = [
+    "ID",
+    "Nome",
+    "Email",
+    "CRM",
+    "Perfil",
+    "Método Login",
+    "Data Cadastro",
+    "Último Acesso",
+    "Total Pacientes",
+    "Total Medições",
+  ].join(",");
+
+  const lines = rows.map((r) =>
+    [
+      escape(r.id),
+      escape(r.name ?? ""),
+      escape(r.email ?? ""),
+      escape(r.crm ?? ""),
+      escape(r.role === "admin" ? "Administrador" : "Médico"),
+      escape(r.loginMethod ?? ""),
+      escape(formatDate(r.createdAt)),
+      escape(formatDate(r.lastSignedIn)),
+      escape(r.patientCount ?? 0),
+      escape(r.measurementCount ?? 0),
+    ].join(",")
+  );
+
+  return [header, ...lines].join("\n");
 }
 
 /**

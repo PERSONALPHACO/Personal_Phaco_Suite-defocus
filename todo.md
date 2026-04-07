@@ -306,3 +306,9 @@
 - [x] Identificar onde a interpolação spline gera o pico em +1.0 D
 - [x] Corrigir: mudar type="monotone" para type="linear" no Recharts (dados já interpolados pela spline cúbica, dupla suavização causava o pico)
 - [x] Verificar que a curva publicada tem o mesmo padrão da pré-visualização
+
+## Feature - Exportação CSV de Médicos (Admin)
+- [x] Backend: procedure admin.exportUsersCsv que retorna string CSV com todos os médicos e stats
+- [x] CSV inclui: ID, Nome, Email, CRM, Perfil, Método Login, Data Cadastro, Último Acesso, Total Pacientes, Total Medições
+- [x] Frontend: botão "Exportar CSV" na página /admin com download automático
+- [x] Geração do CSV no frontend via Blob com BOM UTF-8 para compatibilidade com Excel

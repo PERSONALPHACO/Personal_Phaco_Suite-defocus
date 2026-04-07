@@ -21,6 +21,7 @@ import {
   Shield,
   ChevronRight,
   TrendingUp,
+  Download,
 } from "lucide-react";
 
 export default function Admin() {
@@ -40,6 +41,29 @@ export default function Admin() {
   const { data: iolStats, isLoading: iolsLoading } = trpc.admin.iolStats.useQuery(undefined, {
     enabled: !!user && user.role === "admin",
   });
+
+  const { isLoading: csvLoading, refetch: fetchCsv } = trpc.admin.exportUsersCsv.useQuery(
+    undefined,
+    { enabled: false }
+  );
+
+  const handleExportCsv = async () => {
+    const result = await fetchCsv();
+    const csv = result.data?.csv;
+    if (!csv) return;
+    const bom = "\uFEFF"; // UTF-8 BOM for Excel compatibility
+    const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("pt-BR").replace(/\//g, "-");
+    a.download = `medicos-defocusapp-${dateStr}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   if (loading || !user) return null;
   if (user.role !== "admin") return null;
@@ -139,10 +163,22 @@ export default function Admin() {
           {/* Doctors Table */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Users className="h-4 w-4 text-blue-500" />
-                Médicos Cadastrados
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-500" />
+                  Médicos Cadastrados
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCsv}
+                  disabled={csvLoading || usersLoading}
+                  className="gap-1.5 text-xs h-8"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {csvLoading ? "Exportando..." : "Exportar CSV"}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {usersLoading ? (
