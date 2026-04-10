@@ -322,3 +322,8 @@
 - [x] Investigar query getIOLCurves: usava innerJoin via patientIolId (null na maioria das medições), retornando 0 curvas
 - [x] Corrigir: mudar JOIN para via patientId (pacientes que têm a IOL implantada), com GROUP BY para deduplicar
 - [x] Verificar que as curvas aparecem ao clicar na IOL (2 curvas para EMV Rayone confirmadas)
+
+## Bug Fix - Aba de Comparação de Curvas
+- [x] Causa raiz: Compare.tsx usava curvas de referência sintéticas (hardcoded por tipo de IOL) em vez de dados reais
+- [x] Corrigir: reescrever Compare.tsx para usar trpc.iols.curves por IOL selecionada, calculando média logMAR por ponto de dioptria
+- [x] Verificado: 7 IOLs com curvas reais no banco (RayOne Trifocal: 5, Intensity: 3, PanOptix: 2, Vivity: 2, EMV Rayone: 2, Galaxy: 1, LENTIS Mplus: 1)

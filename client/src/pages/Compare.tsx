@@ -2,7 +2,6 @@ import DefocusLayout from "@/components/DefocusLayout";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -21,8 +20,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { Activity, Download, Eye, GitCompare, Info, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { Activity, Download, Eye, GitCompare, Plus, X, TrendingUp } from "lucide-react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import IOLCascadeSelect from "@/components/IOLCascadeSelect";
 
@@ -39,30 +38,20 @@ const CHART_COLORS = [
 
 const IOL_TYPE_LABELS: Record<string, string> = {
   monofocal: "Monofocal",
+  monofocal_plus: "Monofocal Plus",
   bifocal: "Bifocal",
   trifocal: "Trifocal",
   edof: "EDOF",
   toric: "Tórica",
 };
 
-const IOL_TYPE_COLORS: Record<string, string> = {
-  monofocal: "bg-slate-100 text-slate-700 border-slate-200",
-  bifocal: "bg-blue-100 text-blue-700 border-blue-200",
-  trifocal: "bg-primary/10 text-primary border-primary/20",
-  edof: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  toric: "bg-amber-100 text-amber-700 border-amber-200",
-};
+const DIOPTERS = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5];
 
-// Typical defocus curve profiles in logMAR (clinical standard)
-// logMAR = -log10(decimal): 0.00 = 20/20, 0.10 = 20/25, 0.20 = 20/32, 0.30 = 20/40, 0.60 = 20/80
-const REFERENCE_CURVES: Record<string, Record<string, number>> = {
-  //          +1.0   +0.5   0.0   -0.5   -1.0   -1.5   -2.0   -2.5   -3.0   -3.5
-  trifocal:  { "1": 0.40, "0.5": 0.10, "0": 0.00, "-0.5": 0.10, "-1": 0.22, "-1.5": 0.10, "-2": 0.05, "-2.5": 0.22, "-3": 0.40, "-3.5": 0.52 },
-  edof:      { "1": 0.30, "0.5": 0.08, "0": 0.00, "-0.5": 0.05, "-1": 0.10, "-1.5": 0.10, "-2": 0.15, "-2.5": 0.25, "-3": 0.40, "-3.5": 0.55 },
-  monofocal: { "1": 0.22, "0.5": 0.05, "0": 0.00, "-0.5": 0.10, "-1": 0.22, "-1.5": 0.40, "-2": 0.52, "-2.5": 0.60, "-3": 0.60, "-3.5": 0.60 },
-  bifocal:   { "1": 0.40, "0.5": 0.10, "0": 0.00, "-0.5": 0.10, "-1": 0.30, "-1.5": 0.40, "-2": 0.15, "-2.5": 0.10, "-3": 0.30, "-3.5": 0.50 },
-  toric:     { "1": 0.22, "0.5": 0.05, "0": 0.00, "-0.5": 0.10, "-1": 0.22, "-1.5": 0.40, "-2": 0.52, "-2.5": 0.60, "-3": 0.60, "-3.5": 0.60 },
-};
+// Converte Snellen decimal para logMAR
+function toLogMAR(snellen: number): number {
+  if (snellen <= 0) return 1.0;
+  return parseFloat((-Math.log10(snellen)).toFixed(4));
+}
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -88,13 +77,71 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
+// Componente que busca e processa a curva média de uma IOL
+function useIOLAverageCurve(iolId: number | undefined) {
+  const { data, isLoading } = trpc.iols.curves.useQuery(
+    { iolId: iolId! },
+    { enabled: !!iolId }
+  );
+
+  const averageCurve = useMemo(() => {
+    if (!data || data.curves.length === 0) return null;
+
+    // Para cada ponto de dioptria, calcular a média logMAR de todas as curvas
+    const avgByDiopter: Record<number, number> = {};
+    for (const d of DIOPTERS) {
+      const values: number[] = [];
+      for (const curve of data.curves) {
+        const pt = curve.points.find((p) => Math.abs(p.diopter - d) < 0.01);
+        if (pt && pt.visualAcuity > 0) {
+          values.push(toLogMAR(pt.visualAcuity));
+        }
+      }
+      if (values.length > 0) {
+        avgByDiopter[d] = parseFloat((values.reduce((a, b) => a + b, 0) / values.length).toFixed(4));
+      }
+    }
+    return { avgByDiopter, count: data.count };
+  }, [data]);
+
+  return { averageCurve, isLoading, count: data?.count ?? 0 };
+}
+
+// Componente interno que carrega a curva de uma IOL
+function IOLCurveLoader({
+  iolId,
+  onReady,
+}: {
+  iolId: number;
+  onReady: (iolId: number, avgByDiopter: Record<number, number> | null, count: number) => void;
+}) {
+  const { averageCurve, count } = useIOLAverageCurve(iolId);
+
+  // Notifica o pai quando os dados chegam
+  useMemo(() => {
+    onReady(iolId, averageCurve?.avgByDiopter ?? null, count);
+  }, [iolId, averageCurve, count, onReady]);
+
+  return null;
+}
+
 export default function Compare() {
   const [selectedIolIds, setSelectedIolIds] = useState<number[]>([]);
   const [addingId, setAddingId] = useState<number | undefined>(undefined);
-  const [showReference, setShowReference] = useState(false);
+  // Map: iolId → { avgByDiopter, count }
+  const [curveData, setCurveData] = useState<Record<number, { avg: Record<number, number> | null; count: number }>>({});
 
   const { data: allIols = [] } = trpc.iols.list.useQuery();
 
+  const handleCurveReady = useMemo(
+    () => (iolId: number, avg: Record<number, number> | null, count: number) => {
+      setCurveData((prev) => {
+        if (prev[iolId]?.avg === avg && prev[iolId]?.count === count) return prev;
+        return { ...prev, [iolId]: { avg, count } };
+      });
+    },
+    []
+  );
 
   const addIOL = () => {
     if (!addingId) return;
@@ -112,31 +159,46 @@ export default function Compare() {
 
   const removeIOL = (id: number) => {
     setSelectedIolIds((prev) => prev.filter((x) => x !== id));
+    setCurveData((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const selectedIols = allIols.filter((iol) => selectedIolIds.includes(iol.id));
 
-  // Build chart data with reference curves for selected IOLs (clinical range +1.0 to -3.5 D)
-  const diopters = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5];
-
-  const chartData = diopters.map((d) => {
-    const row: Record<string, any> = { diopter: d };
-    selectedIols.forEach((iol) => {
-      const refCurve = REFERENCE_CURVES[iol.type] || REFERENCE_CURVES["monofocal"];
-      row[`iol_${iol.id}`] = refCurve[d.toString()] ?? null;
+  // Montar chartData com médias reais
+  const chartData = useMemo(() => {
+    return DIOPTERS.map((d) => {
+      const row: Record<string, any> = { diopter: d };
+      selectedIols.forEach((iol) => {
+        const cd = curveData[iol.id];
+        row[`iol_${iol.id}`] = cd?.avg?.[d] ?? null;
+      });
+      return row;
     });
-    return row;
+  }, [selectedIols, curveData]);
+
+  const hasAnyData = selectedIols.some((iol) => {
+    const cd = curveData[iol.id];
+    return cd?.count && cd.count > 0;
   });
 
   return (
     <DefocusLayout>
+      {/* Loaders invisíveis para buscar dados de cada IOL selecionada */}
+      {selectedIolIds.map((id) => (
+        <IOLCurveLoader key={id} iolId={id} onReady={handleCurveReady} />
+      ))}
+
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Comparação de IOLs</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Compare curvas Defocus de múltiplas lentes intraoculares
+              Compare curvas Defocus médias baseadas em dados reais dos pacientes
             </p>
           </div>
           <Button
@@ -148,18 +210,6 @@ export default function Compare() {
             <Download className="w-4 h-4 mr-2" />
             Exportar Gráfico
           </Button>
-        </div>
-
-        {/* Demo notice */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
-          <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-amber-800">Curvas de Referência</p>
-            <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-              As curvas exibidas são perfis de referência baseados no tipo de IOL (trifocal, EDOF, monofocal). 
-              Para curvas baseadas em dados reais de seus pacientes, registre medições na seção de Pacientes.
-            </p>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -201,31 +251,36 @@ export default function Compare() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {selectedIols.map((iol, idx) => (
-                      <div
-                        key={iol.id}
-                        className="flex items-center gap-2 p-2.5 rounded-lg border bg-card"
-                      >
+                    {selectedIols.map((iol, idx) => {
+                      const cd = curveData[iol.id];
+                      return (
                         <div
-                          className="w-3 h-3 rounded-full shrink-0"
-                          style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-foreground truncate">
-                            {iol.model}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {iol.manufacturerName}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => removeIOL(iol.id)}
-                          className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                          key={iol.id}
+                          className="flex items-center gap-2 p-2.5 rounded-lg border bg-card"
                         >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          <div
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-foreground truncate">
+                              {iol.model}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {cd?.count
+                                ? `n = ${cd.count} curva${cd.count !== 1 ? "s" : ""}`
+                                : "Sem dados reais"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => removeIOL(iol.id)}
+                            className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -234,7 +289,10 @@ export default function Compare() {
                     variant="outline"
                     size="sm"
                     className="w-full text-xs text-muted-foreground"
-                    onClick={() => setSelectedIolIds([])}
+                    onClick={() => {
+                      setSelectedIolIds([]);
+                      setCurveData({});
+                    }}
                   >
                     Limpar seleção
                   </Button>
@@ -252,8 +310,8 @@ export default function Compare() {
               <CardContent className="space-y-2">
                 {[
                   {
-                    label: "Trifocais Alcon",
-                    ids: allIols.filter((i) => i.type === "trifocal" && i.manufacturerName === "Alcon").map((i) => i.id),
+                    label: "Trifocais",
+                    ids: allIols.filter((i) => i.type === "trifocal").slice(0, 4).map((i) => i.id),
                   },
                   {
                     label: "Todos os EDOFs",
@@ -274,7 +332,10 @@ export default function Compare() {
                       variant="outline"
                       size="sm"
                       className="w-full text-xs justify-start"
-                      onClick={() => setSelectedIolIds(preset.ids)}
+                      onClick={() => {
+                        setCurveData({});
+                        setSelectedIolIds(preset.ids);
+                      }}
                     >
                       {preset.label}
                     </Button>
@@ -290,7 +351,13 @@ export default function Compare() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Activity className="w-4 h-4 text-primary" />
-                  curvas Defocus Comparativas
+                  Curvas Defocus Comparativas
+                  {hasAnyData && (
+                    <span className="ml-auto text-xs font-normal text-muted-foreground flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      Média das curvas reais
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -298,8 +365,16 @@ export default function Compare() {
                   <div className="h-80 flex flex-col items-center justify-center text-center">
                     <GitCompare className="w-14 h-14 text-muted-foreground mb-4" />
                     <p className="font-medium text-foreground">Nenhuma IOL selecionada</p>
-                    <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                    <p className="text-sm text-muted-foreground mt-1 max-xs">
                       Selecione IOLs no painel à esquerda para comparar suas curvas Defocus
+                    </p>
+                  </div>
+                ) : !hasAnyData ? (
+                  <div className="h-80 flex flex-col items-center justify-center text-center">
+                    <TrendingUp className="w-14 h-14 text-muted-foreground mb-4" />
+                    <p className="font-medium text-foreground">Sem dados reais para as IOLs selecionadas</p>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                      Registre medições de acuidade visual para pacientes com essas IOLs implantadas para que as curvas apareçam aqui.
                     </p>
                   </div>
                 ) : (
@@ -307,10 +382,6 @@ export default function Compare() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 25 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.01 240)" />
-                        {/*
-                          X: +1.0 at LEFT → -3.5 at RIGHT (clinical standard)
-                          Y: -0.1 at TOP (best) → 0.6 at BOTTOM (worst)
-                        */}
                         <XAxis
                           dataKey="diopter"
                           type="number"
@@ -349,9 +420,6 @@ export default function Compare() {
                             <span className="text-foreground">{value}</span>
                           )}
                         />
-                        {/* Vision zone backgrounds */}
-                        <ReferenceLine x={-0.5}  stroke="#93c5fd" strokeDasharray="2 2" strokeWidth={1} />
-                        <ReferenceLine x={-1.75} stroke="#86efac" strokeDasharray="2 2" strokeWidth={1} />
                         {/* Functional cutoff at 0.20 logMAR */}
                         <ReferenceLine
                           y={0.20}
@@ -368,19 +436,23 @@ export default function Compare() {
                           strokeWidth={1.5}
                           label={{ value: "Plano", position: "top", fontSize: 9, fill: "#3b82f6" }}
                         />
-                        {selectedIols.map((iol, idx) => (
-                          <Line
-                            key={iol.id}
-                            type="linear"
-                            dataKey={`iol_${iol.id}`}
-                            name={`${iol.model} (${IOL_TYPE_LABELS[iol.type] || iol.type})`}
-                            stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                            strokeWidth={2.5}
-                            dot={{ r: 4, strokeWidth: 2, fill: "white" }}
-                            activeDot={{ r: 6 }}
-                            connectNulls={false}
-                          />
-                        ))}
+                        {selectedIols.map((iol, idx) => {
+                          const cd = curveData[iol.id];
+                          if (!cd?.count) return null;
+                          return (
+                            <Line
+                              key={iol.id}
+                              type="linear"
+                              dataKey={`iol_${iol.id}`}
+                              name={`${iol.model} (n=${cd.count})`}
+                              stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                              strokeWidth={2.5}
+                              dot={{ r: 4, strokeWidth: 2, fill: "white" }}
+                              activeDot={{ r: 6 }}
+                              connectNulls={false}
+                            />
+                          );
+                        })}
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -401,46 +473,44 @@ export default function Compare() {
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b bg-muted/30">
-                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">IOL</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Fabricante</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Tipo</th>
-                          <th className="text-center px-4 py-2.5 font-semibold text-muted-foreground">Constante A</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Design</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Material</th>
+                          <th className="text-left p-3 font-semibold text-muted-foreground">IOL</th>
+                          <th className="text-left p-3 font-semibold text-muted-foreground">Fabricante</th>
+                          <th className="text-left p-3 font-semibold text-muted-foreground">Tipo</th>
+                          <th className="text-left p-3 font-semibold text-muted-foreground">Material</th>
+                          <th className="text-left p-3 font-semibold text-muted-foreground">Const. A</th>
+                          <th className="text-left p-3 font-semibold text-muted-foreground">Curvas</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedIols.map((iol, idx) => (
-                          <tr key={iol.id} className="border-b hover:bg-muted/20 transition-colors">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                                  style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }}
-                                />
-                                <span className="font-semibold text-foreground">{iol.model}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">{iol.manufacturerName}</td>
-                            <td className="px-4 py-3">
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${IOL_TYPE_COLORS[iol.type] || "bg-muted text-muted-foreground"}`}
-                              >
-                                {IOL_TYPE_LABELS[iol.type] || iol.type}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              {iol.aConstant ? (
-                                <span className="font-mono font-semibold text-primary">{iol.aConstant}</span>
-                              ) : (
-                                <span className="text-muted-foreground italic text-[10px]">Consultar</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">{iol.opticDesign || "—"}</td>
-                            <td className="px-4 py-3 text-muted-foreground">{iol.material || "—"}</td>
-                          </tr>
-                        ))}
+                        {selectedIols.map((iol, idx) => {
+                          const cd = curveData[iol.id];
+                          return (
+                            <tr key={iol.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                                    style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }}
+                                  />
+                                  <span className="font-semibold text-foreground">{iol.model}</span>
+                                </div>
+                              </td>
+                              <td className="p-3 text-muted-foreground">{iol.manufacturerName}</td>
+                              <td className="p-3">
+                                <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">
+                                  {IOL_TYPE_LABELS[iol.type] || iol.type}
+                                </span>
+                              </td>
+                              <td className="p-3 text-muted-foreground">{iol.material || "—"}</td>
+                              <td className="p-3 text-muted-foreground">{(iol as any).aConstant ?? "—"}</td>
+                              <td className="p-3">
+                                <span className={`font-semibold ${cd?.count ? "text-primary" : "text-muted-foreground"}`}>
+                                  {cd?.count ? `n = ${cd.count}` : "Sem dados"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
