@@ -21,7 +21,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { Activity, Download, Eye, GitCompare, Plus, X, TrendingUp } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import IOLCascadeSelect from "@/components/IOLCascadeSelect";
 
@@ -117,8 +117,8 @@ function IOLCurveLoader({
 }) {
   const { averageCurve, count } = useIOLAverageCurve(iolId);
 
-  // Notifica o pai quando os dados chegam
-  useMemo(() => {
+  // Notifica o pai quando os dados chegam (useEffect evita setState durante render)
+  useEffect(() => {
     onReady(iolId, averageCurve?.avgByDiopter ?? null, count);
   }, [iolId, averageCurve, count, onReady]);
 

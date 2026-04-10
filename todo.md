@@ -327,3 +327,7 @@
 - [x] Causa raiz: Compare.tsx usava curvas de referência sintéticas (hardcoded por tipo de IOL) em vez de dados reais
 - [x] Corrigir: reescrever Compare.tsx para usar trpc.iols.curves por IOL selecionada, calculando média logMAR por ponto de dioptria
 - [x] Verificado: 7 IOLs com curvas reais no banco (RayOne Trifocal: 5, Intensity: 3, PanOptix: 2, Vivity: 2, EMV Rayone: 2, Galaxy: 1, LENTIS Mplus: 1)
+
+## Bug Fix - Erro React setState durante render no Compare.tsx
+- [x] Causa: IOLCurveLoader usava useMemo para chamar setCurveData (setState do pai) durante a fase de render, violando regras do React
+- [x] Correção: substituir useMemo por useEffect no IOLCurveLoader para garantir que o setState só ocorre após o render
