@@ -331,3 +331,7 @@
 ## Bug Fix - Erro React setState durante render no Compare.tsx
 - [x] Causa: IOLCurveLoader usava useMemo para chamar setCurveData (setState do pai) durante a fase de render, violando regras do React
 - [x] Correção: substituir useMemo por useEffect no IOLCurveLoader para garantir que o setState só ocorre após o render
+
+## Bug Fix - React Error #310 no Logout
+- [x] Corrigir violação das Regras dos Hooks: useEffect chamado dentro de bloco if (!user) no DefocusLayout.tsx
+- [x] Mover useEffect de redirecionamento para fora de qualquer bloco condicional (antes dos early returns)

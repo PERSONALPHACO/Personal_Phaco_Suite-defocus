@@ -62,6 +62,13 @@ export default function DefocusLayout({ children }: { children: React.ReactNode 
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
+  // Redireciona para login quando não autenticado (deve ficar fora de qualquer bloco condicional)
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.href = "/login";
+    }
+  }, [loading, user]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -76,10 +83,6 @@ export default function DefocusLayout({ children }: { children: React.ReactNode 
   }
 
   if (!user) {
-    // Redirect to login page instead of showing inline gate
-    useEffect(() => {
-      window.location.href = "/login";
-    }, []);
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
