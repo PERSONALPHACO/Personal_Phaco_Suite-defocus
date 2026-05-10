@@ -711,7 +711,7 @@ export async function adminGetIOLStats() {
       manufacturerName: manufacturers.name,
       totalUses: sql<number>`COUNT(DISTINCT ${patientIols.id})`,
       totalMeasurements: sql<number>`COUNT(DISTINCT ${measurements.id})`,
-      totalDoctors: sql<number>`COUNT(DISTINCT ${patients.userId})`,
+      totalDoctors: sql<number>`COUNT(DISTINCT ${measurements.userId})`,
     })
     .from(iols)
     .leftJoin(patientIols, eq(patientIols.iolId, iols.id))
@@ -805,6 +805,7 @@ export async function adminGetIOLCurve(iolId: number) {
       diopter: measurementPoints.diopter,
       visualAcuity: measurementPoints.visualAcuity,
       measurementId: measurementPoints.measurementId,
+      patientIolId: measurements.patientIolId,
       userId: measurements.userId,
     })
     .from(measurementPoints)
@@ -835,7 +836,8 @@ export async function adminGetIOLCurve(iolId: number) {
     });
 
   // Contar casos e médicos distintos
-  const caseCount = new Set(rows.map((r) => r.measurementId)).size;
+  // caseCount = distinct implants (patient_iols), not measurements
+  const caseCount = new Set(rows.map((r) => r.patientIolId)).size;
   const doctorCount = new Set(rows.map((r) => r.userId)).size;
 
   return { points, caseCount, doctorCount };
