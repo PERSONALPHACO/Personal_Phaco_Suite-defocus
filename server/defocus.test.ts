@@ -109,11 +109,27 @@ describe("iols", () => {
     ).rejects.toThrow();
   });
 
-  it("create succeeds with valid authenticated user", async () => {
-    const ctx = createMockContext();
+  it("create is rejected for a non-admin doctor", async () => {
+    // O catálogo de LIOs é global e compartilhado: escrita é só de admin.
+    // Este teste antes usava um médico comum e só verificava "não é
+    // UNAUTHORIZED" dentro de um catch — permanecia verde sem testar nada.
+    const ctx = createMockContext("user");
     const caller = appRouter.createCaller(ctx);
-    // This will attempt DB call; in test env DB may not be available
-    // We just verify it doesn't throw auth errors
+    await expect(
+      caller.iols.create({
+        manufacturerId: 1,
+        model: "Test IOL Model",
+        type: "edof",
+        material: "Hydrophobic acrylic",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("create passes authorization for an admin", async () => {
+    const ctx = createMockContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    // Sem banco no ambiente de teste a chamada pode falhar na camada de dados;
+    // o que importa aqui é que ela não seja barrada por autorização.
     try {
       await caller.iols.create({
         manufacturerId: 1,
@@ -122,8 +138,7 @@ describe("iols", () => {
         material: "Hydrophobic acrylic",
       });
     } catch (err: any) {
-      // Accept DB connection errors but not auth errors
-      expect(err.message).not.toContain("UNAUTHORIZED");
+      expect(err.code).not.toBe("FORBIDDEN");
       expect(err.code).not.toBe("UNAUTHORIZED");
     }
   });

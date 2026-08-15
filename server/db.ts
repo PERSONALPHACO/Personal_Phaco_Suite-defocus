@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, inArray, sql } from "drizzle-orm";
+import { eq, and, or, isNull, desc, asc, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -467,10 +467,32 @@ export async function getIOLCurves(iolId: number) {
   const db = await getDb();
   if (!db) return { curves: [], count: 0 };
 
-  // Buscar todas as medições de pacientes que têm esta IOL implantada.
-  // Usa JOIN via patientId (não apenas patientIolId) para capturar medições
-  // registradas sem vínculo direto ao implante.
-  // Usa GROUP BY para deduplicar quando o paciente tem múltiplos implantes da mesma IOL.
+  // Vincula medição a implante.
+  //
+  // CORREÇÃO CIENTÍFICA: este JOIN ligava medição a implante apenas por
+  // patientId, ignorando o olho. Num paciente com LIO A no OD e LIO B no OS
+  // — mix-and-match, blended vision, ou troca de estratégia entre o primeiro e
+  // o segundo olho — a medição do OD casava com AMBOS os implantes e entrava
+  // como evidência das duas lentes. As curvas se misturavam em silêncio, e o
+  // viés era maior justamente na população premium com implante bilateral
+  // não idêntico.
+  //
+  // Regra agora:
+  //  1. measurements.patientIolId, quando preenchido, é o vínculo autoritativo;
+  //  2. medição monocular (OD/OS) sem vínculo: mesmo paciente e mesmo olho —
+  //     ou implante registrado como "OU", que cobre os dois olhos;
+  //  3. medição binocular ("OU") sem vínculo: só é atribuída a uma lente se
+  //     essa lente estiver nos DOIS olhos. Isso vale tanto para um implante
+  //     registrado como "OU" quanto para o registro em duas linhas (OD + OS),
+  //     que é o padrão normal quando as cirurgias têm datas diferentes.
+  //
+  // A parte (3) exige EXISTS: "a lente está nos dois olhos" é uma condição
+  // sobre o conjunto de implantes do paciente, não sobre a linha do JOIN, e
+  // portanto não cabe numa condição plana. Sem ela, todo paciente com a mesma
+  // lente bilateral registrada em duas linhas sumiria da amostra — exatamente
+  // a população mais limpa do estudo.
+  //
+  // GROUP BY deduplica o caso raro de dois implantes da mesma LIO no mesmo olho.
   const rawRows = await db
     .select({
       measurementId: measurements.id,
@@ -481,7 +503,43 @@ export async function getIOLCurves(iolId: number) {
       refractiveTarget: sql<string | null>`MIN(${patientIols.refractiveTarget})`,
     })
     .from(measurements)
-    .innerJoin(patientIols, eq(patientIols.patientId, measurements.patientId))
+    .innerJoin(
+      patientIols,
+      or(
+        // (1) vínculo explícito com o implante
+        eq(measurements.patientIolId, patientIols.id),
+        // (2) medição monocular sem vínculo
+        and(
+          isNull(measurements.patientIolId),
+          eq(patientIols.patientId, measurements.patientId),
+          inArray(measurements.eye, ["OD", "OS"]),
+          or(
+            eq(patientIols.eye, measurements.eye),
+            eq(patientIols.eye, "OU"),
+          ),
+        ),
+        // (3) medição binocular sem vínculo: exige a lente nos dois olhos
+        and(
+          isNull(measurements.patientIolId),
+          eq(patientIols.patientId, measurements.patientId),
+          eq(measurements.eye, "OU"),
+          or(
+            eq(patientIols.eye, "OU"),
+            sql`(EXISTS (
+                   SELECT 1 FROM ${patientIols} AS pi_od
+                   WHERE pi_od.patientId = ${measurements.patientId}
+                     AND pi_od.iolId = ${patientIols.iolId}
+                     AND pi_od.eye IN ('OD', 'OU')
+                 ) AND EXISTS (
+                   SELECT 1 FROM ${patientIols} AS pi_os
+                   WHERE pi_os.patientId = ${measurements.patientId}
+                     AND pi_os.iolId = ${patientIols.iolId}
+                     AND pi_os.eye IN ('OS', 'OU')
+                 ))`,
+          ),
+        ),
+      ),
+    )
     .where(eq(patientIols.iolId, iolId))
     .groupBy(
       measurements.id,
@@ -660,7 +718,27 @@ export async function adminGetUserDetail(userId: number) {
   const db = await getDb();
   if (!db) return null;
 
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  // SEGURANÇA: seleção explícita de colunas. Um `select()` sem projeção trazia
+  // a linha inteira de `users` — passwordHash incluído — que era serializada
+  // para o navegador do admin e ficava no cache do React Query. Nenhuma tela
+  // precisa do hash.
+  const [user] = await db
+    .select({
+      id: users.id,
+      openId: users.openId,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      crm: users.crm,
+      loginMethod: users.loginMethod,
+      emailVerified: users.emailVerified,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+      lastSignedIn: users.lastSignedIn,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   if (!user) return null;
 
   const userPatients = await db

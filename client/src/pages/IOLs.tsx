@@ -1,5 +1,6 @@
 import DefocusLayout from "@/components/DefocusLayout";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -141,12 +142,17 @@ function IOLCard({
   onEdit,
   onDelete,
   rank,
+  canManage,
 }: {
   iol: IOLItem;
   onClick: () => void;
   onEdit: (iol: IOLItem) => void;
   onDelete: (iol: IOLItem) => void;
   rank: number; // 1-based position for "most used" badge
+  // O catálogo de LIOs é global e compartilhado: escrita é só de admin no
+  // servidor. A interface precisa refletir isso, senão o médico comum preenche
+  // o formulário inteiro para receber um erro de permissão no final.
+  canManage: boolean;
 }) {
   const { data } = trpc.iols.curves.useQuery({ iolId: iol.id });
   const n = data?.count ?? 0;
@@ -271,7 +277,8 @@ function IOLCard({
               <span className="text-xs text-muted-foreground">Sem curvas ainda</span>
             </div>
           )}
-          {/* Action buttons — always visible */}
+          {/* Ações do catálogo global: visíveis apenas para admin */}
+          {canManage && (
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
             <Button
               variant="ghost"
@@ -292,6 +299,7 @@ function IOLCard({
               Excluir
             </Button>
           </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -312,6 +320,11 @@ export default function IOLs() {
   // Sheet state
   const [selectedIOL, setSelectedIOL] = useState<IOLItem | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Escrita no catálogo global de LIOs é restrita a admin no servidor
+  // (iols.create/update/delete e manufacturers.create são adminProcedure).
+  const { user } = useAuth();
+  const canManage = user?.role === "admin";
 
   const { data: iols = [], refetch: refetchIOLs } = trpc.iols.list.useQuery();
   const { data: manufacturers = [] } = trpc.manufacturers.list.useQuery();
@@ -429,13 +442,21 @@ export default function IOLs() {
               {iols.length} lentes intraoculares cadastradas — clique em uma IOL para ver as curvas
             </p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          {!canManage && (
+            <p className="text-xs text-muted-foreground max-w-xs sm:text-right">
+              O catálogo de lentes é compartilhado por todos os médicos e mantido
+              pela administração. Para incluir ou corrigir uma lente, fale conosco.
+            </p>
+          )}
+          <Dialog open={canManage && dialogOpen} onOpenChange={setDialogOpen}>
+            {canManage && (
             <DialogTrigger asChild>
               <Button className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold shadow-sm">
                 <Plus className="w-4 h-4 mr-2" />
                 Nova IOL
               </Button>
             </DialogTrigger>
+            )}
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Cadastrar Nova IOL</DialogTitle>
@@ -629,6 +650,7 @@ export default function IOLs() {
                 onClick={() => handleIOLClick(iol as IOLItem)}
                 onEdit={handleEditIOL}
                 onDelete={handleDeleteIOL}
+                canManage={canManage}
               />
             ))}
           </div>

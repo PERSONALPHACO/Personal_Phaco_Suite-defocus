@@ -7,6 +7,12 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter2 as appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { assertRequiredEnv } from "./env";
+
+// Falha no boot, e não na primeira redefinição de senha de um usuário real: um
+// deploy que esqueceu uma variável obrigatória deve ser descoberto por quem faz
+// o deploy, não por um médico trancado fora da própria conta.
+assertRequiredEnv();
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {

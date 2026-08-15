@@ -30,7 +30,10 @@ export default function ForgotPassword() {
       setError("Informe seu e-mail.");
       return;
     }
-    resetMutation.mutate({ email: email.trim(), origin: window.location.origin });
+    // A URL de redefinição é montada no servidor, a partir de APP_PUBLIC_URL.
+    // O cliente não envia origem: valor vindo do navegador não pode compor um
+    // link que carrega token de credencial.
+    resetMutation.mutate({ email: email.trim() });
   };
 
   return (

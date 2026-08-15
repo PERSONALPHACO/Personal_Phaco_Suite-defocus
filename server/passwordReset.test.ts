@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// A URL de redefinição passa a ser montada pelo servidor a partir de
+// APP_PUBLIC_URL, definida em vitest.config.ts (test.env).
 import { appRouter } from "./routers";
 import type { inferRouterContext } from "@trpc/server";
 import type { AppRouter } from "./routers";
@@ -52,7 +54,6 @@ describe("auth.requestPasswordReset", () => {
 
     const result = await caller.auth.requestPasswordReset({
       email: "notfound@example.com",
-      origin: "https://app.example.com",
     });
 
     expect(result.success).toBe(true);
@@ -76,7 +77,6 @@ describe("auth.requestPasswordReset", () => {
 
     const result = await caller.auth.requestPasswordReset({
       email: "oauth@example.com",
-      origin: "https://app.example.com",
     });
 
     expect(result.success).toBe(true);
@@ -100,7 +100,6 @@ describe("auth.requestPasswordReset", () => {
 
     const result = await caller.auth.requestPasswordReset({
       email: "doctor@example.com",
-      origin: "https://app.example.com",
     });
 
     expect(result.success).toBe(true);
@@ -108,7 +107,7 @@ describe("auth.requestPasswordReset", () => {
     expect(sendPasswordResetEmail).toHaveBeenCalledWith(
       "doctor@example.com",
       "Dr. Test",
-      "https://app.example.com/reset-password?token=abc123token"
+      "https://defocusapp.com/reset-password?token=abc123token"
     );
   });
 });

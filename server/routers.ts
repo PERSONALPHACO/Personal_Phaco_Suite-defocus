@@ -8,6 +8,7 @@ import { sdk } from "./_core/sdk";
 import { generateDefocusCurve, computeFunctionalArea } from "./defocusCurve";
 import bcrypt from "bcryptjs";
 import { sendPasswordResetEmail, sendNewDoctorNotification } from "./_core/email";
+import { requireAppPublicUrl } from "./_core/env";
 import { generatePDFReport, type PDFReportData } from "./pdfGenerator";
 import {
   getAllManufacturers,
@@ -67,7 +68,27 @@ export const appRouter = router({
   system: systemRouter,
 
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    // SEGURANÇA: devolvia ctx.user inteiro — a linha completa da tabela users,
+    // passwordHash incluído. O hash bcrypt chegava ao navegador e o hook
+    // useAuth ainda o gravava em localStorage, onde persiste e fica ao alcance
+    // de qualquer XSS ou de quem tenha acesso à máquina. Nenhuma tela precisa
+    // do hash: devolvemos apenas os campos que a interface usa.
+    me: publicProcedure.query((opts) => {
+      const user = opts.ctx.user;
+      if (!user) return null;
+      return {
+        id: user.id,
+        openId: user.openId,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        crm: user.crm,
+        loginMethod: user.loginMethod,
+        emailVerified: user.emailVerified,
+        createdAt: user.createdAt,
+        lastSignedIn: user.lastSignedIn,
+      };
+    }),
 
     register: publicProcedure
       .input(
@@ -198,14 +219,36 @@ export const appRouter = router({
     requestPasswordReset: publicProcedure
       .input(z.object({
         email: z.string().email(),
-        origin: z.string().url(),
       }))
       .mutation(async ({ input }) => {
+        // SEGURANÇA: a base da URL vem exclusivamente da configuração do
+        // servidor. Ela já foi um parâmetro de entrada, o que permitia a
+        // qualquer pessoa fazer o app enviar um e-mail legítimo contendo um
+        // token de redefinição válido apontando para um domínio hostil —
+        // tomada de conta em uma única requisição. Nada vindo do cliente
+        // (corpo, query, cabeçalho Host, Origin ou Referer) pode compor um
+        // link que carrega credencial.
+        //
+        // A falha é resolvida antes de qualquer consulta ao banco, de modo que
+        // o comportamento é idêntico para qualquer e-mail — preservando a
+        // proteção contra enumeração de contas. A mensagem interna não é
+        // repassada: esta rota é pública e o texto chegaria ao navegador.
+        let baseUrl: string;
+        try {
+          baseUrl = requireAppPublicUrl();
+        } catch (err) {
+          console.error("[requestPasswordReset]", err);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível processar a solicitação. Tente novamente mais tarde.",
+          });
+        }
+
         const user = await getUserByEmail(input.email);
         if (user && user.passwordHash) {
           // Only email/password accounts can reset via email
           const token = await createPasswordResetToken(user.id);
-          const resetUrl = `${input.origin}/reset-password?token=${token}`;
+          const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
           await sendPasswordResetEmail(user.email!, user.name ?? "Médico", resetUrl);
         }
         // Always return success to prevent email enumeration
@@ -236,12 +279,18 @@ export const appRouter = router({
   }),
 
   // ─── Manufacturers ──────────────────────────────────────────────────────────
+  //
+  // Fabricantes e LIOs formam um catálogo GLOBAL, compartilhado por todos os
+  // médicos. Escrita aqui afeta os dados de todo mundo, então é restrita a
+  // admin. Antes eram protectedProcedure: qualquer médico cadastrado podia
+  // renomear uma lente, alterar sua constante A ou apagar uma LIO do catálogo
+  // inteiro — sem má-fé, bastava alguém "limpando" o que julgasse duplicado.
   manufacturers: router({
     list: publicProcedure.query(async () => {
       return getAllManufacturers();
     }),
 
-    create: protectedProcedure
+    create: adminProcedure
       .input(
         z.object({
           name: z.string().min(1).max(128),
@@ -267,7 +316,8 @@ export const appRouter = router({
         return getIOLById(input.id);
       }),
 
-    create: protectedProcedure
+    // Catálogo global: escrita restrita a admin (ver nota em manufacturers).
+    create: adminProcedure
       .input(
         z.object({
           manufacturerId: z.number(),
@@ -285,7 +335,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    update: protectedProcedure
+    update: adminProcedure
       .input(
         z.object({
           id: z.number(),
@@ -305,7 +355,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    delete: protectedProcedure
+    delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await deleteIOL(input.id);
@@ -455,7 +505,19 @@ export const appRouter = router({
           notes: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        // SEGURANÇA: sem esta verificação, qualquer médico autenticado podia
+        // gravar um implante no prontuário de qualquer paciente da plataforma
+        // informando um patientId arbitrário. Mesmo padrão já usado em
+        // measurements.create.
+        const patient = await getPatientById(input.patientId, ctx.user.id);
+        if (!patient) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Paciente não encontrado ou sem permissão.",
+          });
+        }
+
         const data = {
           ...input,
           surgeryDate: input.surgeryDate ? new Date(input.surgeryDate) : undefined,
