@@ -1,0 +1,942 @@
+From 296e55ccb07ccd0569a2ea5b10107821f47afcba Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Sat, 15 Aug 2026 12:16:03 +0000
+Subject: [PATCH] Fase 0: corrige tomada de conta, escrita entre tenants e
+ contaminacao de curva
+
+Correcoes de seguranca e integridade encontradas na auditoria do codigo
+exportado do Manus (claude/defocusapp-auditoria-fase0.md).
+
+CRITICA - tomada de conta via redefinicao de senha
+  auth.requestPasswordReset recebia 'origin' do cliente e o interpolava na
+  URL enviada por e-mail. Uma unica requisicao fazia o app enviar um e-mail
+  legitimo, do proprio dominio, com um token valido apontando para o servidor
+  do atacante. Funcionava contra qualquer medico, inclusive o admin.
+  A URL passa a vir de APP_PUBLIC_URL, validada no boot.
+
+ALTA - escrita entre tenants
+  patientIols.create nao verificava a posse do paciente: qualquer medico
+  autenticado gravava um implante no prontuario de qualquer paciente da
+  plataforma. Aplica o mesmo padrao ja usado em measurements.create.
+
+ALTA - contaminacao cientifica das curvas
+  getIOLCurves ligava medicao a implante so por patientId, ignorando o olho.
+  Em implante bilateral misto a medicao de um olho entrava como evidencia das
+  duas lentes. Passa a exigir vinculo explicito, ou mesmo olho, ou - para
+  medicao binocular - a lente presente nos dois olhos (EXISTS).
+
+ALTA - catalogo global editavel por qualquer medico
+  iols.create/update/delete e manufacturers.create eram protectedProcedure.
+  Passam a adminProcedure, com a interface espelhando a restricao.
+
+MEDIA - hash de senha exposto ao navegador
+  auth.me e adminGetUserDetail devolviam a linha inteira de users, com
+  passwordHash. Ambos passam a projetar colunas explicitamente.
+
+Inclui testes de regressao para cada achado e .env.example documentando a
+configuracao obrigatoria.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01SjMEbdpU8JRM5ZLNdhaueW
+---
+ .env.example                        |  46 +++++
+ client/src/pages/ForgotPassword.tsx |   5 +-
+ client/src/pages/IOLs.tsx           |  26 ++-
+ server/_core/env.ts                 |  51 ++++++
+ server/_core/index.ts               |   6 +
+ server/db.ts                        |  92 +++++++++-
+ server/defocus.test.ts              |  27 ++-
+ server/passwordReset.test.ts        |   7 +-
+ server/routers.ts                   |  78 +++++++-
+ server/security.regression.test.ts  | 266 ++++++++++++++++++++++++++++
+ vitest.config.ts                    |   7 +
+ 11 files changed, 583 insertions(+), 28 deletions(-)
+ create mode 100644 .env.example
+ create mode 100644 server/security.regression.test.ts
+
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..cc3e891
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,46 @@
++# ─── Obrigatórias ───────────────────────────────────────────────────────────
++# O servidor recusa subir (assertRequiredEnv) se qualquer uma faltar.
++
++# Conexão MySQL/TiDB.
++DATABASE_URL=mysql://usuario:senha@host:3306/defocus
++
++# URL pública canônica da aplicação, sem barra no final.
++#
++# SEGURANÇA: é a ÚNICA origem admitida para montar links que carregam
++# credencial (redefinição de senha). Já foi um parâmetro enviado pelo cliente,
++# o que permitia a qualquer pessoa fazer o app enviar um e-mail legítimo com um
++# token válido apontando para um domínio hostil — tomada de conta em uma única
++# requisição. Nunca derive esta URL do corpo da requisição nem dos cabeçalhos
++# Host, Origin ou Referer.
++APP_PUBLIC_URL=https://defocusapp.com
++
++# ─── Sessão ─────────────────────────────────────────────────────────────────
++
++# Segredo de assinatura dos cookies de sessão (JWT).
++JWT_SECRET=
++
++# ─── E-mail transacional (Resend) ───────────────────────────────────────────
++# Sem esta chave o envio é silenciosamente ignorado: sendEmail apenas registra
++# um aviso e retorna false. É o motivo de a recuperação de senha não funcionar
++# hoje em produção.
++#
++# ATENÇÃO: só religue o envio depois de confirmar que a correção do
++# APP_PUBLIC_URL está em produção. Com o e-mail desligado, a falha de tomada de
++# conta era inexplorável; religar antes de corrigir a torna explorável.
++RESEND_API_KEY=
++
++# ─── Armazenamento S3 ───────────────────────────────────────────────────────
++AWS_ACCESS_KEY_ID=
++AWS_SECRET_ACCESS_KEY=
++AWS_REGION=
++S3_BUCKET=
++
++# ─── Legado da plataforma Manus ─────────────────────────────────────────────
++# A remover na migração. OAUTH_SERVER_URL e VITE_APP_ID sustentam o login OAuth
++# do Manus; OWNER_OPEN_ID identifica a conta dona. As variáveis BUILT_IN_FORGE_*
++# atendem a helpers de LLM que a aplicação não usa no fluxo principal.
++VITE_APP_ID=
++OAUTH_SERVER_URL=
++OWNER_OPEN_ID=
++BUILT_IN_FORGE_API_URL=
++BUILT_IN_FORGE_API_KEY=
+diff --git a/client/src/pages/ForgotPassword.tsx b/client/src/pages/ForgotPassword.tsx
+index 8c581ea..719ecc9 100644
+--- a/client/src/pages/ForgotPassword.tsx
++++ b/client/src/pages/ForgotPassword.tsx
+@@ -30,7 +30,10 @@ export default function ForgotPassword() {
+       setError("Informe seu e-mail.");
+       return;
+     }
+-    resetMutation.mutate({ email: email.trim(), origin: window.location.origin });
++    // A URL de redefinição é montada no servidor, a partir de APP_PUBLIC_URL.
++    // O cliente não envia origem: valor vindo do navegador não pode compor um
++    // link que carrega token de credencial.
++    resetMutation.mutate({ email: email.trim() });
+   };
+ 
+   return (
+diff --git a/client/src/pages/IOLs.tsx b/client/src/pages/IOLs.tsx
+index 941d76c..fe6e18b 100644
+--- a/client/src/pages/IOLs.tsx
++++ b/client/src/pages/IOLs.tsx
+@@ -1,5 +1,6 @@
+ import DefocusLayout from "@/components/DefocusLayout";
+ import { trpc } from "@/lib/trpc";
++import { useAuth } from "@/_core/hooks/useAuth";
+ import { Card, CardContent } from "@/components/ui/card";
+ import { Button } from "@/components/ui/button";
+ import { Badge } from "@/components/ui/badge";
+@@ -141,12 +142,17 @@ function IOLCard({
+   onEdit,
+   onDelete,
+   rank,
++  canManage,
+ }: {
+   iol: IOLItem;
+   onClick: () => void;
+   onEdit: (iol: IOLItem) => void;
+   onDelete: (iol: IOLItem) => void;
+   rank: number; // 1-based position for "most used" badge
++  // O catálogo de LIOs é global e compartilhado: escrita é só de admin no
++  // servidor. A interface precisa refletir isso, senão o médico comum preenche
++  // o formulário inteiro para receber um erro de permissão no final.
++  canManage: boolean;
+ }) {
+   const { data } = trpc.iols.curves.useQuery({ iolId: iol.id });
+   const n = data?.count ?? 0;
+@@ -271,7 +277,8 @@ function IOLCard({
+               <span className="text-xs text-muted-foreground">Sem curvas ainda</span>
+             </div>
+           )}
+-          {/* Action buttons — always visible */}
++          {/* Ações do catálogo global: visíveis apenas para admin */}
++          {canManage && (
+           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+             <Button
+               variant="ghost"
+@@ -292,6 +299,7 @@ function IOLCard({
+               Excluir
+             </Button>
+           </div>
++          )}
+         </div>
+       </CardContent>
+     </Card>
+@@ -313,6 +321,11 @@ export default function IOLs() {
+   const [selectedIOL, setSelectedIOL] = useState<IOLItem | null>(null);
+   const [sheetOpen, setSheetOpen] = useState(false);
+ 
++  // Escrita no catálogo global de LIOs é restrita a admin no servidor
++  // (iols.create/update/delete e manufacturers.create são adminProcedure).
++  const { user } = useAuth();
++  const canManage = user?.role === "admin";
++
+   const { data: iols = [], refetch: refetchIOLs } = trpc.iols.list.useQuery();
+   const { data: manufacturers = [] } = trpc.manufacturers.list.useQuery();
+ 
+@@ -429,13 +442,21 @@ export default function IOLs() {
+               {iols.length} lentes intraoculares cadastradas — clique em uma IOL para ver as curvas
+             </p>
+           </div>
+-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
++          {!canManage && (
++            <p className="text-xs text-muted-foreground max-w-xs sm:text-right">
++              O catálogo de lentes é compartilhado por todos os médicos e mantido
++              pela administração. Para incluir ou corrigir uma lente, fale conosco.
++            </p>
++          )}
++          <Dialog open={canManage && dialogOpen} onOpenChange={setDialogOpen}>
++            {canManage && (
+             <DialogTrigger asChild>
+               <Button className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold shadow-sm">
+                 <Plus className="w-4 h-4 mr-2" />
+                 Nova IOL
+               </Button>
+             </DialogTrigger>
++            )}
+             <DialogContent className="max-w-lg">
+               <DialogHeader>
+                 <DialogTitle>Cadastrar Nova IOL</DialogTitle>
+@@ -629,6 +650,7 @@ export default function IOLs() {
+                 onClick={() => handleIOLClick(iol as IOLItem)}
+                 onEdit={handleEditIOL}
+                 onDelete={handleDeleteIOL}
++                canManage={canManage}
+               />
+             ))}
+           </div>
+diff --git a/server/_core/env.ts b/server/_core/env.ts
+index 2792b99..9625d81 100644
+--- a/server/_core/env.ts
++++ b/server/_core/env.ts
+@@ -8,3 +8,54 @@ export const ENV = {
+   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
+   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+ };
++
++/**
++ * URL pública canônica da aplicação (ex.: https://defocusapp.com).
++ *
++ * SEGURANÇA: é a única origem admitida para montar links que carregam
++ * credencial (redefinição de senha, verificação de e-mail). Nunca derive essas
++ * URLs de entrada do cliente nem de cabeçalhos da requisição — ambos são
++ * controlados pelo atacante e permitem sequestro do token.
++ *
++ * Lida em tempo de chamada, e não no carregamento do módulo: imports em ESM são
++ * içados para o topo, então um teste que faz `process.env.APP_PUBLIC_URL = ...`
++ * no corpo do arquivo executa depois do import — congelar o valor aqui deixaria
++ * a configuração dependente da ordem de carregamento.
++ */
++export function getAppPublicUrl(): string {
++  return (process.env.APP_PUBLIC_URL ?? "").replace(/\/+$/, "");
++}
++
++/**
++ * Retorna a URL pública canônica, falhando alto se não estiver configurada.
++ *
++ * Preferimos derrubar o fluxo de redefinição a enviar um link inválido — ou,
++ * pior, a cair em algum valor derivado da requisição.
++ */
++export function requireAppPublicUrl(): string {
++  const url = getAppPublicUrl();
++  if (!url) {
++    throw new Error(
++      "APP_PUBLIC_URL não configurada. É obrigatória para gerar links de redefinição de senha."
++    );
++  }
++  return url;
++}
++
++/**
++ * Valida a configuração obrigatória na subida do processo.
++ *
++ * Falhar no boot é muito melhor que falhar na primeira redefinição de senha de
++ * um usuário real — um deploy que esqueceu a variável é descoberto por quem faz
++ * o deploy, não por um médico trancado fora da conta.
++ */
++export function assertRequiredEnv(): void {
++  const missing: string[] = [];
++  if (!getAppPublicUrl()) missing.push("APP_PUBLIC_URL");
++  if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
++  if (missing.length > 0) {
++    throw new Error(
++      `Variáveis de ambiente obrigatórias ausentes: ${missing.join(", ")}.`
++    );
++  }
++}
+diff --git a/server/_core/index.ts b/server/_core/index.ts
+index b5b9dda..ca8bfed 100644
+--- a/server/_core/index.ts
++++ b/server/_core/index.ts
+@@ -7,6 +7,12 @@ import { registerOAuthRoutes } from "./oauth";
+ import { appRouter2 as appRouter } from "../routers";
+ import { createContext } from "./context";
+ import { serveStatic, setupVite } from "./vite";
++import { assertRequiredEnv } from "./env";
++
++// Falha no boot, e não na primeira redefinição de senha de um usuário real: um
++// deploy que esqueceu uma variável obrigatória deve ser descoberto por quem faz
++// o deploy, não por um médico trancado fora da própria conta.
++assertRequiredEnv();
+ 
+ function isPortAvailable(port: number): Promise<boolean> {
+   return new Promise(resolve => {
+diff --git a/server/db.ts b/server/db.ts
+index 645f63d..081484a 100644
+--- a/server/db.ts
++++ b/server/db.ts
+@@ -1,4 +1,4 @@
+-import { eq, and, desc, asc, inArray, sql } from "drizzle-orm";
++import { eq, and, or, isNull, desc, asc, inArray, sql } from "drizzle-orm";
+ import { drizzle } from "drizzle-orm/mysql2";
+ import {
+   InsertUser,
+@@ -467,10 +467,32 @@ export async function getIOLCurves(iolId: number) {
+   const db = await getDb();
+   if (!db) return { curves: [], count: 0 };
+ 
+-  // Buscar todas as medições de pacientes que têm esta IOL implantada.
+-  // Usa JOIN via patientId (não apenas patientIolId) para capturar medições
+-  // registradas sem vínculo direto ao implante.
+-  // Usa GROUP BY para deduplicar quando o paciente tem múltiplos implantes da mesma IOL.
++  // Vincula medição a implante.
++  //
++  // CORREÇÃO CIENTÍFICA: este JOIN ligava medição a implante apenas por
++  // patientId, ignorando o olho. Num paciente com LIO A no OD e LIO B no OS
++  // — mix-and-match, blended vision, ou troca de estratégia entre o primeiro e
++  // o segundo olho — a medição do OD casava com AMBOS os implantes e entrava
++  // como evidência das duas lentes. As curvas se misturavam em silêncio, e o
++  // viés era maior justamente na população premium com implante bilateral
++  // não idêntico.
++  //
++  // Regra agora:
++  //  1. measurements.patientIolId, quando preenchido, é o vínculo autoritativo;
++  //  2. medição monocular (OD/OS) sem vínculo: mesmo paciente e mesmo olho —
++  //     ou implante registrado como "OU", que cobre os dois olhos;
++  //  3. medição binocular ("OU") sem vínculo: só é atribuída a uma lente se
++  //     essa lente estiver nos DOIS olhos. Isso vale tanto para um implante
++  //     registrado como "OU" quanto para o registro em duas linhas (OD + OS),
++  //     que é o padrão normal quando as cirurgias têm datas diferentes.
++  //
++  // A parte (3) exige EXISTS: "a lente está nos dois olhos" é uma condição
++  // sobre o conjunto de implantes do paciente, não sobre a linha do JOIN, e
++  // portanto não cabe numa condição plana. Sem ela, todo paciente com a mesma
++  // lente bilateral registrada em duas linhas sumiria da amostra — exatamente
++  // a população mais limpa do estudo.
++  //
++  // GROUP BY deduplica o caso raro de dois implantes da mesma LIO no mesmo olho.
+   const rawRows = await db
+     .select({
+       measurementId: measurements.id,
+@@ -481,7 +503,43 @@ export async function getIOLCurves(iolId: number) {
+       refractiveTarget: sql<string | null>`MIN(${patientIols.refractiveTarget})`,
+     })
+     .from(measurements)
+-    .innerJoin(patientIols, eq(patientIols.patientId, measurements.patientId))
++    .innerJoin(
++      patientIols,
++      or(
++        // (1) vínculo explícito com o implante
++        eq(measurements.patientIolId, patientIols.id),
++        // (2) medição monocular sem vínculo
++        and(
++          isNull(measurements.patientIolId),
++          eq(patientIols.patientId, measurements.patientId),
++          inArray(measurements.eye, ["OD", "OS"]),
++          or(
++            eq(patientIols.eye, measurements.eye),
++            eq(patientIols.eye, "OU"),
++          ),
++        ),
++        // (3) medição binocular sem vínculo: exige a lente nos dois olhos
++        and(
++          isNull(measurements.patientIolId),
++          eq(patientIols.patientId, measurements.patientId),
++          eq(measurements.eye, "OU"),
++          or(
++            eq(patientIols.eye, "OU"),
++            sql`(EXISTS (
++                   SELECT 1 FROM ${patientIols} AS pi_od
++                   WHERE pi_od.patientId = ${measurements.patientId}
++                     AND pi_od.iolId = ${patientIols.iolId}
++                     AND pi_od.eye IN ('OD', 'OU')
++                 ) AND EXISTS (
++                   SELECT 1 FROM ${patientIols} AS pi_os
++                   WHERE pi_os.patientId = ${measurements.patientId}
++                     AND pi_os.iolId = ${patientIols.iolId}
++                     AND pi_os.eye IN ('OS', 'OU')
++                 ))`,
++          ),
++        ),
++      ),
++    )
+     .where(eq(patientIols.iolId, iolId))
+     .groupBy(
+       measurements.id,
+@@ -660,7 +718,27 @@ export async function adminGetUserDetail(userId: number) {
+   const db = await getDb();
+   if (!db) return null;
+ 
+-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
++  // SEGURANÇA: seleção explícita de colunas. Um `select()` sem projeção trazia
++  // a linha inteira de `users` — passwordHash incluído — que era serializada
++  // para o navegador do admin e ficava no cache do React Query. Nenhuma tela
++  // precisa do hash.
++  const [user] = await db
++    .select({
++      id: users.id,
++      openId: users.openId,
++      name: users.name,
++      email: users.email,
++      role: users.role,
++      crm: users.crm,
++      loginMethod: users.loginMethod,
++      emailVerified: users.emailVerified,
++      createdAt: users.createdAt,
++      updatedAt: users.updatedAt,
++      lastSignedIn: users.lastSignedIn,
++    })
++    .from(users)
++    .where(eq(users.id, userId))
++    .limit(1);
+   if (!user) return null;
+ 
+   const userPatients = await db
+diff --git a/server/defocus.test.ts b/server/defocus.test.ts
+index 6097577..4612404 100644
+--- a/server/defocus.test.ts
++++ b/server/defocus.test.ts
+@@ -109,11 +109,27 @@ describe("iols", () => {
+     ).rejects.toThrow();
+   });
+ 
+-  it("create succeeds with valid authenticated user", async () => {
+-    const ctx = createMockContext();
++  it("create is rejected for a non-admin doctor", async () => {
++    // O catálogo de LIOs é global e compartilhado: escrita é só de admin.
++    // Este teste antes usava um médico comum e só verificava "não é
++    // UNAUTHORIZED" dentro de um catch — permanecia verde sem testar nada.
++    const ctx = createMockContext("user");
+     const caller = appRouter.createCaller(ctx);
+-    // This will attempt DB call; in test env DB may not be available
+-    // We just verify it doesn't throw auth errors
++    await expect(
++      caller.iols.create({
++        manufacturerId: 1,
++        model: "Test IOL Model",
++        type: "edof",
++        material: "Hydrophobic acrylic",
++      })
++    ).rejects.toMatchObject({ code: "FORBIDDEN" });
++  });
++
++  it("create passes authorization for an admin", async () => {
++    const ctx = createMockContext("admin");
++    const caller = appRouter.createCaller(ctx);
++    // Sem banco no ambiente de teste a chamada pode falhar na camada de dados;
++    // o que importa aqui é que ela não seja barrada por autorização.
+     try {
+       await caller.iols.create({
+         manufacturerId: 1,
+@@ -122,8 +138,7 @@ describe("iols", () => {
+         material: "Hydrophobic acrylic",
+       });
+     } catch (err: any) {
+-      // Accept DB connection errors but not auth errors
+-      expect(err.message).not.toContain("UNAUTHORIZED");
++      expect(err.code).not.toBe("FORBIDDEN");
+       expect(err.code).not.toBe("UNAUTHORIZED");
+     }
+   });
+diff --git a/server/passwordReset.test.ts b/server/passwordReset.test.ts
+index a42f038..47c0cf6 100644
+--- a/server/passwordReset.test.ts
++++ b/server/passwordReset.test.ts
+@@ -1,4 +1,6 @@
+ import { describe, it, expect, vi, beforeEach } from "vitest";
++// A URL de redefinição passa a ser montada pelo servidor a partir de
++// APP_PUBLIC_URL, definida em vitest.config.ts (test.env).
+ import { appRouter } from "./routers";
+ import type { inferRouterContext } from "@trpc/server";
+ import type { AppRouter } from "./routers";
+@@ -52,7 +54,6 @@ describe("auth.requestPasswordReset", () => {
+ 
+     const result = await caller.auth.requestPasswordReset({
+       email: "notfound@example.com",
+-      origin: "https://app.example.com",
+     });
+ 
+     expect(result.success).toBe(true);
+@@ -76,7 +77,6 @@ describe("auth.requestPasswordReset", () => {
+ 
+     const result = await caller.auth.requestPasswordReset({
+       email: "oauth@example.com",
+-      origin: "https://app.example.com",
+     });
+ 
+     expect(result.success).toBe(true);
+@@ -100,7 +100,6 @@ describe("auth.requestPasswordReset", () => {
+ 
+     const result = await caller.auth.requestPasswordReset({
+       email: "doctor@example.com",
+-      origin: "https://app.example.com",
+     });
+ 
+     expect(result.success).toBe(true);
+@@ -108,7 +107,7 @@ describe("auth.requestPasswordReset", () => {
+     expect(sendPasswordResetEmail).toHaveBeenCalledWith(
+       "doctor@example.com",
+       "Dr. Test",
+-      "https://app.example.com/reset-password?token=abc123token"
++      "https://defocusapp.com/reset-password?token=abc123token"
+     );
+   });
+ });
+diff --git a/server/routers.ts b/server/routers.ts
+index 9d2426a..deb6ea7 100644
+--- a/server/routers.ts
++++ b/server/routers.ts
+@@ -8,6 +8,7 @@ import { sdk } from "./_core/sdk";
+ import { generateDefocusCurve, computeFunctionalArea } from "./defocusCurve";
+ import bcrypt from "bcryptjs";
+ import { sendPasswordResetEmail, sendNewDoctorNotification } from "./_core/email";
++import { requireAppPublicUrl } from "./_core/env";
+ import { generatePDFReport, type PDFReportData } from "./pdfGenerator";
+ import {
+   getAllManufacturers,
+@@ -67,7 +68,27 @@ export const appRouter = router({
+   system: systemRouter,
+ 
+   auth: router({
+-    me: publicProcedure.query((opts) => opts.ctx.user),
++    // SEGURANÇA: devolvia ctx.user inteiro — a linha completa da tabela users,
++    // passwordHash incluído. O hash bcrypt chegava ao navegador e o hook
++    // useAuth ainda o gravava em localStorage, onde persiste e fica ao alcance
++    // de qualquer XSS ou de quem tenha acesso à máquina. Nenhuma tela precisa
++    // do hash: devolvemos apenas os campos que a interface usa.
++    me: publicProcedure.query((opts) => {
++      const user = opts.ctx.user;
++      if (!user) return null;
++      return {
++        id: user.id,
++        openId: user.openId,
++        name: user.name,
++        email: user.email,
++        role: user.role,
++        crm: user.crm,
++        loginMethod: user.loginMethod,
++        emailVerified: user.emailVerified,
++        createdAt: user.createdAt,
++        lastSignedIn: user.lastSignedIn,
++      };
++    }),
+ 
+     register: publicProcedure
+       .input(
+@@ -198,14 +219,36 @@ export const appRouter = router({
+     requestPasswordReset: publicProcedure
+       .input(z.object({
+         email: z.string().email(),
+-        origin: z.string().url(),
+       }))
+       .mutation(async ({ input }) => {
++        // SEGURANÇA: a base da URL vem exclusivamente da configuração do
++        // servidor. Ela já foi um parâmetro de entrada, o que permitia a
++        // qualquer pessoa fazer o app enviar um e-mail legítimo contendo um
++        // token de redefinição válido apontando para um domínio hostil —
++        // tomada de conta em uma única requisição. Nada vindo do cliente
++        // (corpo, query, cabeçalho Host, Origin ou Referer) pode compor um
++        // link que carrega credencial.
++        //
++        // A falha é resolvida antes de qualquer consulta ao banco, de modo que
++        // o comportamento é idêntico para qualquer e-mail — preservando a
++        // proteção contra enumeração de contas. A mensagem interna não é
++        // repassada: esta rota é pública e o texto chegaria ao navegador.
++        let baseUrl: string;
++        try {
++          baseUrl = requireAppPublicUrl();
++        } catch (err) {
++          console.error("[requestPasswordReset]", err);
++          throw new TRPCError({
++            code: "INTERNAL_SERVER_ERROR",
++            message: "Não foi possível processar a solicitação. Tente novamente mais tarde.",
++          });
++        }
++
+         const user = await getUserByEmail(input.email);
+         if (user && user.passwordHash) {
+           // Only email/password accounts can reset via email
+           const token = await createPasswordResetToken(user.id);
+-          const resetUrl = `${input.origin}/reset-password?token=${token}`;
++          const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+           await sendPasswordResetEmail(user.email!, user.name ?? "Médico", resetUrl);
+         }
+         // Always return success to prevent email enumeration
+@@ -236,12 +279,18 @@ export const appRouter = router({
+   }),
+ 
+   // ─── Manufacturers ──────────────────────────────────────────────────────────
++  //
++  // Fabricantes e LIOs formam um catálogo GLOBAL, compartilhado por todos os
++  // médicos. Escrita aqui afeta os dados de todo mundo, então é restrita a
++  // admin. Antes eram protectedProcedure: qualquer médico cadastrado podia
++  // renomear uma lente, alterar sua constante A ou apagar uma LIO do catálogo
++  // inteiro — sem má-fé, bastava alguém "limpando" o que julgasse duplicado.
+   manufacturers: router({
+     list: publicProcedure.query(async () => {
+       return getAllManufacturers();
+     }),
+ 
+-    create: protectedProcedure
++    create: adminProcedure
+       .input(
+         z.object({
+           name: z.string().min(1).max(128),
+@@ -267,7 +316,8 @@ export const appRouter = router({
+         return getIOLById(input.id);
+       }),
+ 
+-    create: protectedProcedure
++    // Catálogo global: escrita restrita a admin (ver nota em manufacturers).
++    create: adminProcedure
+       .input(
+         z.object({
+           manufacturerId: z.number(),
+@@ -285,7 +335,7 @@ export const appRouter = router({
+         return { success: true };
+       }),
+ 
+-    update: protectedProcedure
++    update: adminProcedure
+       .input(
+         z.object({
+           id: z.number(),
+@@ -305,7 +355,7 @@ export const appRouter = router({
+         return { success: true };
+       }),
+ 
+-    delete: protectedProcedure
++    delete: adminProcedure
+       .input(z.object({ id: z.number() }))
+       .mutation(async ({ input }) => {
+         await deleteIOL(input.id);
+@@ -455,7 +505,19 @@ export const appRouter = router({
+           notes: z.string().optional(),
+         })
+       )
+-      .mutation(async ({ input }) => {
++      .mutation(async ({ ctx, input }) => {
++        // SEGURANÇA: sem esta verificação, qualquer médico autenticado podia
++        // gravar um implante no prontuário de qualquer paciente da plataforma
++        // informando um patientId arbitrário. Mesmo padrão já usado em
++        // measurements.create.
++        const patient = await getPatientById(input.patientId, ctx.user.id);
++        if (!patient) {
++          throw new TRPCError({
++            code: "NOT_FOUND",
++            message: "Paciente não encontrado ou sem permissão.",
++          });
++        }
++
+         const data = {
+           ...input,
+           surgeryDate: input.surgeryDate ? new Date(input.surgeryDate) : undefined,
+diff --git a/server/security.regression.test.ts b/server/security.regression.test.ts
+new file mode 100644
+index 0000000..2b2132c
+--- /dev/null
++++ b/server/security.regression.test.ts
+@@ -0,0 +1,266 @@
++/**
++ * Testes de regressão das correções de segurança da Fase 0.
++ *
++ * Cada bloco abaixo corresponde a uma falha real encontrada na auditoria do
++ * código exportado do Manus. Os testes existem para que a falha não volte:
++ * se alguém reverter a correção, o teste quebra e diz exatamente o quê.
++ *
++ * Referência: claude/defocusapp-auditoria-fase0.md
++ */
++import { describe, it, expect, vi, beforeEach } from "vitest";
++// APP_PUBLIC_URL vem de vitest.config.ts (test.env) — ver nota lá sobre
++// içamento de imports em ESM.
++import { appRouter } from "./routers";
++import type { inferRouterContext } from "@trpc/server";
++import type { AppRouter } from "./routers";
++
++vi.mock("./db", async (importOriginal) => {
++  const actual = await importOriginal<typeof import("./db")>();
++  return {
++    ...actual,
++    getUserByEmail: vi.fn(),
++    createPasswordResetToken: vi.fn(),
++    getPatientById: vi.fn(),
++    createPatientIOL: vi.fn(),
++    createIOL: vi.fn(),
++    updateIOL: vi.fn(),
++    deleteIOL: vi.fn(),
++    createManufacturer: vi.fn(),
++  };
++});
++
++vi.mock("./_core/email", () => ({
++  sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
++  sendNewDoctorNotification: vi.fn().mockResolvedValue(true),
++}));
++
++import {
++  getUserByEmail,
++  createPasswordResetToken,
++  getPatientById,
++  createPatientIOL,
++  createIOL,
++  updateIOL,
++  deleteIOL,
++  createManufacturer,
++} from "./db";
++import { sendPasswordResetEmail } from "./_core/email";
++
++type Ctx = inferRouterContext<AppRouter>;
++
++function makeCtx(user: Partial<{ id: number; role: "user" | "admin" }> | null): Ctx {
++  return {
++    req: {} as any,
++    res: { cookie: vi.fn(), clearCookie: vi.fn() } as any,
++    user: user
++      ? ({
++          id: user.id ?? 1,
++          openId: `open_${user.id ?? 1}`,
++          name: "Dr. Teste",
++          email: `doutor${user.id ?? 1}@exemplo.com`,
++          role: user.role ?? "user",
++          passwordHash: "$2b$12$hash",
++          emailVerified: true,
++          crm: null,
++          loginMethod: "email",
++          createdAt: new Date(),
++          updatedAt: new Date(),
++          lastSignedIn: new Date(),
++        } as any)
++      : null,
++  };
++}
++
++const doctorA = appRouter.createCaller(makeCtx({ id: 10, role: "user" }));
++const doctorB = appRouter.createCaller(makeCtx({ id: 20, role: "user" }));
++const admin = appRouter.createCaller(makeCtx({ id: 99, role: "admin" }));
++const anonymous = appRouter.createCaller(makeCtx(null));
++
++beforeEach(() => {
++  vi.clearAllMocks();
++});
++
++// ───────────────────────────────────────────────────────────────────────────
++// Achado 1 (CRÍTICA) — tomada de conta via redefinição de senha
++// ───────────────────────────────────────────────────────────────────────────
++
++describe("Achado 1: URL de redefinição não pode vir do cliente", () => {
++  const victim = {
++    id: 42,
++    name: "Dr. Vítima",
++    email: "vitima@exemplo.com",
++    passwordHash: "$2b$12$hash",
++    role: "user",
++    loginMethod: "email",
++    openId: "open_42",
++    emailVerified: true,
++    createdAt: new Date(),
++    lastSignedIn: new Date(),
++  };
++
++  it("ignora a origem hostil enviada pelo cliente", async () => {
++    vi.mocked(getUserByEmail).mockResolvedValue(victim as any);
++    vi.mocked(createPasswordResetToken).mockResolvedValue("token-valido");
++
++    // Esta era a exploração: uma única requisição fazia o app enviar um e-mail
++    // legítimo com um token válido apontando para o domínio do atacante.
++    //
++    // Zod remove chaves desconhecidas em vez de rejeitar, então a garantia real
++    // não é "a chamada falha" — é que o valor NUNCA influencia a URL emitida.
++    // É isso que este teste fixa.
++    await anonymous.auth.requestPasswordReset({
++      email: "vitima@exemplo.com",
++      origin: "https://dominio-do-atacante.com",
++    } as any);
++
++    const urlEnviada = vi.mocked(sendPasswordResetEmail).mock.calls[0][2];
++    expect(urlEnviada).toBe("https://defocusapp.com/reset-password?token=token-valido");
++    expect(urlEnviada).not.toContain("dominio-do-atacante.com");
++  });
++
++  it("monta a URL a partir de APP_PUBLIC_URL, ignorando qualquer entrada", async () => {
++    vi.mocked(getUserByEmail).mockResolvedValue(victim as any);
++    vi.mocked(createPasswordResetToken).mockResolvedValue("token-valido");
++
++    await anonymous.auth.requestPasswordReset({ email: "vitima@exemplo.com" });
++
++    expect(sendPasswordResetEmail).toHaveBeenCalledWith(
++      "vitima@exemplo.com",
++      "Dr. Vítima",
++      "https://defocusapp.com/reset-password?token=token-valido"
++    );
++  });
++
++  it("nunca emite um link para domínio que não seja o configurado", async () => {
++    vi.mocked(getUserByEmail).mockResolvedValue(victim as any);
++    vi.mocked(createPasswordResetToken).mockResolvedValue("token-valido");
++
++    await anonymous.auth.requestPasswordReset({ email: "vitima@exemplo.com" });
++
++    const urlEnviada = vi.mocked(sendPasswordResetEmail).mock.calls[0][2];
++    expect(urlEnviada.startsWith("https://defocusapp.com/")).toBe(true);
++  });
++});
++
++// ───────────────────────────────────────────────────────────────────────────
++// Achado 2 (ALTA) — escrita entre tenants
++// ───────────────────────────────────────────────────────────────────────────
++
++describe("Achado 2: implante só pode ser gravado em paciente próprio", () => {
++  it("bloqueia gravar implante no paciente de outro médico", async () => {
++    // getPatientById filtra por userId: paciente de outro médico não retorna.
++    vi.mocked(getPatientById).mockResolvedValue(undefined as any);
++
++    await expect(
++      doctorB.patientIols.create({
++        patientId: 777, // paciente do doutor A
++        iolId: 1,
++        eye: "OD",
++      })
++    ).rejects.toMatchObject({ code: "NOT_FOUND" });
++
++    expect(createPatientIOL).not.toHaveBeenCalled();
++  });
++
++  it("permite gravar implante no próprio paciente", async () => {
++    vi.mocked(getPatientById).mockResolvedValue({ id: 777, userId: 10 } as any);
++
++    const result = await doctorA.patientIols.create({
++      patientId: 777,
++      iolId: 1,
++      eye: "OD",
++    });
++
++    expect(result.success).toBe(true);
++    expect(createPatientIOL).toHaveBeenCalledTimes(1);
++  });
++
++  it("verifica a posse antes de qualquer escrita no banco", async () => {
++    vi.mocked(getPatientById).mockResolvedValue(undefined as any);
++
++    await expect(
++      doctorB.patientIols.create({ patientId: 777, iolId: 1, eye: "OS" })
++    ).rejects.toBeDefined();
++
++    // A checagem precisa receber o userId do chamador, não confiar na entrada.
++    expect(getPatientById).toHaveBeenCalledWith(777, 20);
++  });
++});
++
++// ───────────────────────────────────────────────────────────────────────────
++// Achado 4 (ALTA) — catálogo global editável por qualquer médico
++// ───────────────────────────────────────────────────────────────────────────
++
++describe("Achado 4: catálogo global de LIOs é somente-admin para escrita", () => {
++  const novaIol = {
++    manufacturerId: 1,
++    model: "Modelo Teste",
++    type: "trifocal" as const,
++  };
++
++  it("impede médico comum de criar LIO no catálogo global", async () => {
++    await expect(doctorA.iols.create(novaIol)).rejects.toMatchObject({
++      code: "FORBIDDEN",
++    });
++    expect(createIOL).not.toHaveBeenCalled();
++  });
++
++  it("impede médico comum de alterar LIO do catálogo global", async () => {
++    await expect(
++      doctorA.iols.update({ id: 1, model: "Renomeada" })
++    ).rejects.toMatchObject({ code: "FORBIDDEN" });
++    expect(updateIOL).not.toHaveBeenCalled();
++  });
++
++  it("impede médico comum de APAGAR LIO do catálogo global", async () => {
++    // Era o pior caso: apagar afetava os dados de todos os médicos e, sem
++    // chaves estrangeiras, deixava registros de implante órfãos.
++    await expect(doctorA.iols.delete({ id: 1 })).rejects.toMatchObject({
++      code: "FORBIDDEN",
++    });
++    expect(deleteIOL).not.toHaveBeenCalled();
++  });
++
++  it("impede médico comum de criar fabricante", async () => {
++    await expect(
++      doctorA.manufacturers.create({ name: "Fabricante Teste" })
++    ).rejects.toMatchObject({ code: "FORBIDDEN" });
++    expect(createManufacturer).not.toHaveBeenCalled();
++  });
++
++  it("permite que o admin administre o catálogo", async () => {
++    await admin.iols.create(novaIol);
++    expect(createIOL).toHaveBeenCalledTimes(1);
++
++    await admin.iols.delete({ id: 1 });
++    expect(deleteIOL).toHaveBeenCalledTimes(1);
++  });
++
++  it("leitura do catálogo permanece aberta a qualquer médico", async () => {
++    // A restrição é só de escrita — o catálogo continua consultável.
++    await expect(doctorA.iols.byId({ id: 1 })).resolves.toBeDefined();
++  });
++});
++
++// ───────────────────────────────────────────────────────────────────────────
++// Achado 5 (novo) — hash de senha vazando para o navegador
++// ───────────────────────────────────────────────────────────────────────────
++
++describe("Achado 5: auth.me não expõe o hash da senha", () => {
++  it("não inclui passwordHash na resposta", async () => {
++    const me = await doctorA.auth.me();
++    expect(me).not.toBeNull();
++    expect(me as any).not.toHaveProperty("passwordHash");
++  });
++
++  it("ainda devolve os campos que a interface usa", async () => {
++    const me = (await doctorA.auth.me()) as any;
++    expect(me.id).toBe(10);
++    expect(me.role).toBe("user");
++    expect(me.email).toBeDefined();
++  });
++
++  it("devolve null para visitante não autenticado", async () => {
++    await expect(anonymous.auth.me()).resolves.toBeNull();
++  });
++});
+diff --git a/vitest.config.ts b/vitest.config.ts
+index c549003..8e722b2 100644
+--- a/vitest.config.ts
++++ b/vitest.config.ts
+@@ -15,5 +15,12 @@ export default defineConfig({
+   test: {
+     environment: "node",
+     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
++    // Configuração obrigatória do servidor, definida aqui e não no corpo dos
++    // arquivos de teste: imports em ESM são içados para o topo, então uma
++    // atribuição a process.env no corpo do módulo roda DEPOIS dos imports, e o
++    // resultado passaria a depender da ordem de carregamento.
++    env: {
++      APP_PUBLIC_URL: "https://defocusapp.com",
++    },
+   },
+ });
+-- 
+2.43.0
+
