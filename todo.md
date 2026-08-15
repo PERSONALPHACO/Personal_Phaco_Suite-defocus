@@ -352,3 +352,13 @@
 ## Configuração de Produção
 - [x] Definir APP_PUBLIC_URL como https://defocusapp.com no ambiente Autoscale
 - [x] Validar a configuração e preparar a nova publicação
+
+## Segurança — Correções Prioritárias
+- [x] Corrigir geração do link de recuperação de senha para usar APP_PUBLIC_URL exclusivamente no servidor
+- [x] Garantir verificação de posse ao criar implantes de IOL em pacientes
+- [x] Restringir alterações do catálogo global de IOLs e fabricantes a administradores
+- [x] Corrigir atribuição de medições a IOLs por vínculo explícito e olho correspondente
+- [x] Impedir exposição de passwordHash em respostas de autenticação e administração
+- [x] Sanitizar a geração de PDF e bloquear requisições externas do Chromium
+- [x] Escapar conteúdo de e-mails e proteger o CSV contra injeção de fórmulas
+- [x] Criar e executar testes de regressão de segurança antes da publicação

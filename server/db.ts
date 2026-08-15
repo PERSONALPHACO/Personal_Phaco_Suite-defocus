@@ -460,12 +460,13 @@ export async function deleteMeasurementPoints(measurementId: number) {
 // ─── IOL Curves (curvas reais por IOL) ──────────────────────────────────────
 
 /**
- * Retorna todas as medições reais associadas a uma IOL específica,
- * com seus pontos de curva Defocus. Dados anonimizados (sem nome do paciente).
+ * Associa medições a uma IOL segundo a mesma regra clínica em todas as telas.
+ * A função retorna uma linha por par medição–implante: uma medição binocular
+ * pode ter duas linhas quando a mesma IOL foi implantada em OD e OS.
  */
-export async function getIOLCurves(iolId: number) {
+async function getIOLMeasurementAssociations(iolId: number) {
   const db = await getDb();
-  if (!db) return { curves: [], count: 0 };
+  if (!db) return [];
 
   // Vincula medição a implante.
   //
@@ -493,14 +494,15 @@ export async function getIOLCurves(iolId: number) {
   // a população mais limpa do estudo.
   //
   // GROUP BY deduplica o caso raro de dois implantes da mesma LIO no mesmo olho.
-  const rawRows = await db
+  return db
     .select({
       measurementId: measurements.id,
       measurementDate: measurements.measurementDate,
       eye: measurements.eye,
       notes: measurements.notes,
-      patientIolId: measurements.patientIolId,
-      refractiveTarget: sql<string | null>`MIN(${patientIols.refractiveTarget})`,
+      userId: measurements.userId,
+      matchedPatientIolId: patientIols.id,
+      refractiveTarget: patientIols.refractiveTarget,
     })
     .from(measurements)
     .innerJoin(
@@ -546,9 +548,22 @@ export async function getIOLCurves(iolId: number) {
       measurements.measurementDate,
       measurements.eye,
       measurements.notes,
-      measurements.patientIolId,
+      measurements.userId,
+      patientIols.id,
+      patientIols.refractiveTarget,
     )
     .orderBy(desc(measurements.measurementDate));
+}
+
+/**
+ * Retorna todas as medições reais associadas a uma IOL específica,
+ * com seus pontos de curva Defocus. Dados anonimizados (sem nome do paciente).
+ */
+export async function getIOLCurves(iolId: number) {
+  const db = await getDb();
+  if (!db) return { curves: [], count: 0 };
+
+  const rawRows = await getIOLMeasurementAssociations(iolId);
 
   // Deduplicar por measurementId (segurança extra)
   const seen = new Set<number>();
@@ -602,16 +617,22 @@ export async function getIOLComparisonData(iolIds: number[]) {
     const iolData = await getIOLById(iolId);
     if (!iolData) continue;
 
-    // Get all measurement points for this IOL across all patients (anonymized)
+    // Usa a mesma regra de atribuição de getIOLCurves e do painel admin.
+    // Assim, uma curva OD não pode contaminar a IOL implantada no OS.
+    const associations = await getIOLMeasurementAssociations(iolId);
+    const measurementIds = Array.from(new Set(associations.map((row) => row.measurementId)));
+    if (measurementIds.length === 0) {
+      results.push({ iol: iolData, points: [] });
+      continue;
+    }
+
     const points = await db
       .select({
         diopter: measurementPoints.diopter,
         visualAcuity: measurementPoints.visualAcuity,
       })
       .from(measurementPoints)
-      .innerJoin(measurements, eq(measurementPoints.measurementId, measurements.id))
-      .innerJoin(patientIols, eq(measurements.patientIolId, patientIols.id))
-      .where(eq(patientIols.iolId, iolId));
+      .where(inArray(measurementPoints.measurementId, measurementIds));
 
     results.push({ iol: iolData, points });
   }
@@ -659,21 +680,24 @@ export async function adminGetAllUsers() {
   return rows;
 }
 
+export function escapeCsvCell(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  const raw = String(val);
+  // O Excel pode avaliar valores que começam por estes caracteres como uma
+  // fórmula. O apóstrofo força texto sem modificar o valor visível na planilha.
+  const str = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  // Inclui CR porque CSV pode receber quebras Windows (\r\n) de campos livres.
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 /**
  * Admin: exporta lista de médicos com estatísticas em formato CSV.
  */
 export async function adminExportUsersCsv(): Promise<string> {
   const rows = await adminGetAllUsers();
-
-  const escape = (val: unknown): string => {
-    if (val === null || val === undefined) return "";
-    const str = String(val);
-    // Wrap in quotes if contains comma, quote, or newline
-    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
 
   const formatDate = (d: Date | null | undefined): string => {
     if (!d) return "";
@@ -695,20 +719,20 @@ export async function adminExportUsersCsv(): Promise<string> {
 
   const lines = rows.map((r) =>
     [
-      escape(r.id),
-      escape(r.name ?? ""),
-      escape(r.email ?? ""),
-      escape(r.crm ?? ""),
-      escape(r.role === "admin" ? "Administrador" : "Médico"),
-      escape(r.loginMethod ?? ""),
-      escape(formatDate(r.createdAt)),
-      escape(formatDate(r.lastSignedIn)),
-      escape(r.patientCount ?? 0),
-      escape(r.measurementCount ?? 0),
+      escapeCsvCell(r.id),
+      escapeCsvCell(r.name ?? ""),
+      escapeCsvCell(r.email ?? ""),
+      escapeCsvCell(r.crm ?? ""),
+      escapeCsvCell(r.role === "admin" ? "Administrador" : "Médico"),
+      escapeCsvCell(r.loginMethod ?? ""),
+      escapeCsvCell(formatDate(r.createdAt)),
+      escapeCsvCell(formatDate(r.lastSignedIn)),
+      escapeCsvCell(r.patientCount ?? 0),
+      escapeCsvCell(r.measurementCount ?? 0),
     ].join(",")
   );
 
-  return [header, ...lines].join("\n");
+  return [header, ...lines].join("\r\n");
 }
 
 /**
@@ -877,19 +901,21 @@ export async function adminGetIOLCurve(iolId: number) {
   const db = await getDb();
   if (!db) return { points: [], caseCount: 0, doctorCount: 0 };
 
-  // Buscar todos os pontos via: measurement_points → measurements → patient_iols (iolId)
+  // Reutiliza a regra clínica compartilhada de atribuição de medições. Antes,
+  // este painel aceitava apenas patientIolId explícito, enquanto comparação e
+  // ficha da IOL tinham regras diferentes para registros legados sem vínculo.
+  const associations = await getIOLMeasurementAssociations(iolId);
+  const measurementIds = Array.from(new Set(associations.map((row) => row.measurementId)));
+  if (measurementIds.length === 0) return { points: [], caseCount: 0, doctorCount: 0 };
+
   const rows = await db
     .select({
       diopter: measurementPoints.diopter,
       visualAcuity: measurementPoints.visualAcuity,
       measurementId: measurementPoints.measurementId,
-      patientIolId: measurements.patientIolId,
-      userId: measurements.userId,
     })
     .from(measurementPoints)
-    .innerJoin(measurements, eq(measurementPoints.measurementId, measurements.id))
-    .innerJoin(patientIols, eq(measurements.patientIolId, patientIols.id))
-    .where(eq(patientIols.iolId, iolId))
+    .where(inArray(measurementPoints.measurementId, measurementIds))
     .orderBy(asc(measurementPoints.diopter));
 
   if (rows.length === 0) return { points: [], caseCount: 0, doctorCount: 0 };
@@ -913,10 +939,10 @@ export async function adminGetIOLCurve(iolId: number) {
       return { diopter, avgVisualAcuity: avg, stdDev, count: values.length };
     });
 
-  // Contar casos e médicos distintos
-  // caseCount = distinct implants (patient_iols), not measurements
-  const caseCount = new Set(rows.map((r) => r.patientIolId)).size;
-  const doctorCount = new Set(rows.map((r) => r.userId)).size;
+  // Casos são implantes distintos e médicos são os autores das medições.
+  // Ambos são derivados da associação clínica, não dos pontos repetidos.
+  const caseCount = new Set(associations.map((row) => row.matchedPatientIolId)).size;
+  const doctorCount = new Set(associations.map((row) => row.userId)).size;
 
   return { points, caseCount, doctorCount };
 }

@@ -462,7 +462,6 @@ export const appRouter = router({
               ),
             })
           ),
-          logoUrl: z.string().url(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -479,7 +478,6 @@ export const appRouter = router({
           }),
           iols: input.iols,
           series: input.series,
-          logoUrl: input.logoUrl,
         };
         const pdfBuffer = await generatePDFReport(reportData);
         return { pdf: pdfBuffer.toString("base64") };
@@ -766,5 +764,4 @@ export const appRouter2 = router({
 });
 
 export type AppRouter = typeof appRouter2;
-
 

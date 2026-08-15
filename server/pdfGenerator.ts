@@ -22,7 +22,37 @@ export interface PDFReportData {
   generatedAt: string;
   iols: IOLEntry[];
   series: MeasurementSeries[];
-  logoUrl: string;
+}
+
+/** Escapa texto antes de inseri-lo em HTML/SVG gerado no servidor. */
+export function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Cor em contexto CSS é uma superfície de injeção: url(...) poderia fazer o
+ * Chromium do servidor realizar uma requisição de rede. Aceitamos somente hex
+ * ou rgb()/rgba() com canais numéricos estritos e usamos azul seguro em caso
+ * de entrada inválida.
+ */
+export function sanitizePdfColor(value: unknown): string {
+  const color = String(value ?? "").trim();
+  if (/^#(?:[\da-fA-F]{3}|[\da-fA-F]{6})$/.test(color)) return color;
+
+  const match = color.match(
+    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(0(?:\.\d+)?|1(?:\.0+)?))?\s*\)$/
+  );
+  if (!match) return "#2563eb";
+
+  const [, red, green, blue, alpha] = match;
+  if ([red, green, blue].some((channel) => Number(channel) > 255)) return "#2563eb";
+  if (color.startsWith("rgb(") && alpha !== undefined) return "#2563eb";
+  return color;
 }
 
 function buildChartSvg(series: MeasurementSeries[]): string {
@@ -82,6 +112,7 @@ function buildChartSvg(series: MeasurementSeries[]): string {
   let lines = "";
   for (const s of series) {
     if (!s.points || s.points.length === 0) continue;
+    const color = sanitizePdfColor(s.color);
     const sorted = [...s.points].sort((a, b) => b.diopter - a.diopter);
     const pathD = sorted
       .map((p, i) => {
@@ -90,10 +121,10 @@ function buildChartSvg(series: MeasurementSeries[]): string {
         return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
       })
       .join(" ");
-    lines += `<path d="${pathD}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    lines += `<path d="${pathD}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
     // Dots
     for (const p of sorted) {
-      lines += `<circle cx="${toX(p.diopter).toFixed(1)}" cy="${toY(p.visualAcuity).toFixed(1)}" r="3" fill="${s.color}"/>`;
+      lines += `<circle cx="${toX(p.diopter).toFixed(1)}" cy="${toY(p.visualAcuity).toFixed(1)}" r="3" fill="${color}"/>`;
     }
   }
 
@@ -115,8 +146,8 @@ function buildLegend(series: MeasurementSeries[]): string {
     .map(
       (s) =>
         `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;">
-          <span style="display:inline-block;width:24px;height:3px;background:${s.color};border-radius:2px;"></span>
-          <span style="font-size:12px;color:#374151;">${s.label}</span>
+          <span style="display:inline-block;width:24px;height:3px;background:${sanitizePdfColor(s.color)};border-radius:2px;"></span>
+          <span style="font-size:12px;color:#374151;">${escapeHtml(s.label)}</span>
         </span>`
     )
     .join("");
@@ -128,11 +159,11 @@ function buildIOLTable(iols: IOLEntry[]): string {
     .map(
       (iol) => `
       <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#111827;">${iol.eye === "OD" ? "OD (Direito)" : "OS (Esquerdo)"}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#111827;">${iol.iolName}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">${iol.manufacturer}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">${iol.surgeryDate || "—"}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">${iol.refractiveTarget ? `${Number(iol.refractiveTarget).toFixed(2)} D` : "—"}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#111827;">${escapeHtml(iol.eye === "OD" ? "OD (Direito)" : iol.eye === "OS" ? "OS (Esquerdo)" : "OU (Binocular)")}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#111827;">${escapeHtml(iol.iolName)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">${escapeHtml(iol.manufacturer)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">${escapeHtml(iol.surgeryDate || "—")}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">${escapeHtml(iol.refractiveTarget ? `${Number(iol.refractiveTarget).toFixed(2)} D` : "—")}</td>
       </tr>`
     )
     .join("");
@@ -197,9 +228,9 @@ export async function generatePDFReport(data: PDFReportData): Promise<Buffer> {
       </div>
       <div class="header-right">
         <div class="label">Médico Responsável</div>
-        <div class="value">${data.doctorName}</div>
+        <div class="value">${escapeHtml(data.doctorName)}</div>
         <div class="label" style="margin-top:8px;">Gerado em</div>
-        <div class="value">${data.generatedAt}</div>
+        <div class="value">${escapeHtml(data.generatedAt)}</div>
         <div style="margin-top:8px;"><span class="badge">CASO ANÔNIMO</span></div>
       </div>
     </div>
@@ -227,7 +258,7 @@ export async function generatePDFReport(data: PDFReportData): Promise<Buffer> {
     <!-- Footer -->
     <div class="footer">
       <span>DefocusApp — Plataforma de Análise de IOL</span>
-      <span>Caso: ${data.caseId}</span>
+      <span>Caso: ${escapeHtml(data.caseId)}</span>
     </div>
   </div>
 </body>
@@ -246,7 +277,16 @@ export async function generatePDFReport(data: PDFReportData): Promise<Buffer> {
 
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setRequestInterception(true);
+    page.on("request", (request) => {
+      const protocol = new URL(request.url()).protocol;
+      if (protocol === "data:" || protocol === "about:") {
+        void request.continue();
+        return;
+      }
+      void request.abort();
+    });
+    await page.setContent(html, { waitUntil: "load" });
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,

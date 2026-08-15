@@ -39,6 +39,25 @@ export function requireAppPublicUrl(): string {
       "APP_PUBLIC_URL não configurada. É obrigatória para gerar links de redefinição de senha."
     );
   }
+
+  try {
+    const parsed = new URL(url);
+    if (
+      (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+      !parsed.hostname ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new Error("URL inválida");
+    }
+  } catch {
+    throw new Error(
+      "APP_PUBLIC_URL deve ser uma URL HTTP(S) absoluta, sem credenciais, query string ou fragmento."
+    );
+  }
+
   return url;
 }
 
@@ -58,4 +77,8 @@ export function assertRequiredEnv(): void {
       `Variáveis de ambiente obrigatórias ausentes: ${missing.join(", ")}.`
     );
   }
+
+  // Valida também o formato. Sem isso, uma configuração como ftp:// ou uma URL
+  // com credenciais só falharia na primeira solicitação de redefinição de senha.
+  requireAppPublicUrl();
 }

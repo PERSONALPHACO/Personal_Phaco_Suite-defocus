@@ -10,6 +10,32 @@ export interface SendEmailOptions {
   from?: string;
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function sanitizeEmailSubject(value: string): string {
+  return value.replace(/[\r\n]/g, " ");
+}
+
+function requireSafeHttpUrl(value: string): string {
+  const url = new URL(value);
+  if (
+    (url.protocol !== "https:" && url.protocol !== "http:") ||
+    !url.hostname ||
+    url.username ||
+    url.password
+  ) {
+    throw new Error("URL de e-mail inválida");
+  }
+  return url.toString();
+}
+
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -63,6 +89,10 @@ export async function sendNewDoctorNotification(
     hour: "2-digit",
     minute: "2-digit",
   });
+  const safeAdminName = escapeHtml(adminName);
+  const safeDoctorName = escapeHtml(doctor.name);
+  const safeDoctorEmail = escapeHtml(doctor.email);
+  const safeFormattedDate = escapeHtml(formattedDate);
 
   const html = `
 <!DOCTYPE html>
@@ -105,7 +135,7 @@ export async function sendNewDoctorNotification(
             <td style="padding:16px 40px 32px;">
               <h1 style="margin:0 0 8px;color:#f8fafc;font-size:22px;font-weight:700;">Novo médico cadastrado</h1>
               <p style="margin:0 0 24px;color:#94a3b8;font-size:15px;line-height:1.6;">
-                Olá${adminName ? `, <strong style="color:#e2e8f0;">${adminName}</strong>` : ""}.<br/>
+                Olá${adminName ? `, <strong style="color:#e2e8f0;">${safeAdminName}</strong>` : ""}.<br/>
                 Um novo médico acabou de se cadastrar na plataforma DefocusApp.
               </p>
               <!-- Doctor info card -->
@@ -116,19 +146,19 @@ export async function sendNewDoctorNotification(
                       <tr>
                         <td style="padding-bottom:12px;">
                           <span style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Nome</span><br/>
-                          <span style="color:#f1f5f9;font-size:16px;font-weight:600;">${doctor.name}</span>
+                          <span style="color:#f1f5f9;font-size:16px;font-weight:600;">${safeDoctorName}</span>
                         </td>
                       </tr>
                       <tr>
                         <td style="padding-bottom:12px;border-top:1px solid #1e293b;padding-top:12px;">
                           <span style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">E-mail</span><br/>
-                          <span style="color:#60a5fa;font-size:14px;">${doctor.email}</span>
+                          <span style="color:#60a5fa;font-size:14px;">${safeDoctorEmail}</span>
                         </td>
                       </tr>
                       <tr>
                         <td style="border-top:1px solid #1e293b;padding-top:12px;">
                           <span style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Data de cadastro</span><br/>
-                          <span style="color:#94a3b8;font-size:14px;">${formattedDate} (Horário de Brasília)</span>
+                          <span style="color:#94a3b8;font-size:14px;">${safeFormattedDate} (Horário de Brasília)</span>
                         </td>
                       </tr>
                     </table>
@@ -159,7 +189,7 @@ export async function sendNewDoctorNotification(
 
   return sendEmail({
     to: adminEmail,
-    subject: `Novo médico cadastrado: ${doctor.name} — DefocusApp`,
+    subject: sanitizeEmailSubject(`Novo médico cadastrado: ${doctor.name} — DefocusApp`),
     html,
   });
 }
@@ -172,6 +202,8 @@ export async function sendPasswordResetEmail(
   name: string,
   resetUrl: string
 ): Promise<boolean> {
+  const safeName = escapeHtml(name);
+  const safeResetUrl = escapeHtml(requireSafeHttpUrl(resetUrl));
   const html = `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -207,14 +239,14 @@ export async function sendPasswordResetEmail(
             <td style="padding:32px 40px;">
               <h1 style="margin:0 0 8px;color:#f8fafc;font-size:22px;font-weight:700;">Redefinir sua senha</h1>
               <p style="margin:0 0 24px;color:#94a3b8;font-size:15px;line-height:1.6;">
-                Olá, <strong style="color:#e2e8f0;">${name}</strong>.<br/>
+                Olá, <strong style="color:#e2e8f0;">${safeName}</strong>.<br/>
                 Recebemos uma solicitação para redefinir a senha da sua conta no DefocusApp.
                 Clique no botão abaixo para criar uma nova senha.
               </p>
               <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
                 <tr>
                   <td style="background:#3b82f6;border-radius:8px;">
-                    <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;color:#fff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
+                    <a href="${safeResetUrl}" style="display:inline-block;padding:14px 32px;color:#fff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
                       Redefinir senha
                     </a>
                   </td>
@@ -226,7 +258,7 @@ export async function sendPasswordResetEmail(
               </p>
               <p style="margin:0;color:#475569;font-size:12px;">
                 Ou copie e cole este link no navegador:<br/>
-                <span style="color:#60a5fa;word-break:break-all;">${resetUrl}</span>
+                <span style="color:#60a5fa;word-break:break-all;">${safeResetUrl}</span>
               </p>
             </td>
           </tr>

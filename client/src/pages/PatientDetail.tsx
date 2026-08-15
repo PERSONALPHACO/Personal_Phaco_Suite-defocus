@@ -212,13 +212,10 @@ export default function PatientDetail() {
         refractiveTarget: piol.refractiveTarget ?? undefined,
       }));
 
-      const LOGO_URL = "https://static.manus.space/webdev/defocus-app/logodefocusapp.webp";
-
       const result = await exportPDFMutation.mutateAsync({
         caseId: `${patientId}`,
         iols: iolsList,
         series,
-        logoUrl: LOGO_URL,
       });
 
       // Decode base64 and trigger download
