@@ -337,10 +337,10 @@
 - [x] Mover useEffect de redirecionamento para fora de qualquer bloco condicional (antes dos early returns)
 
 ## Bug - Painel Admin: Inconsistências nas medidas de IOLs
-- [ ] Investigar por que algumas IOLs mostram 0 casos/médicos/pontos apesar de terem uso no ranking
-- [ ] Verificar se a contagem de "Casos" e "Pontos" está correta por IOL
-- [ ] Verificar se os dados de Snellen estão sendo convertidos/exibidos corretamente (possível inversão)
-- [ ] Verificar a query de agregação de medições por IOL no backend
+- [x] Investigar por que algumas IOLs mostram 0 casos/médicos/pontos apesar de terem uso no ranking
+- [x] Verificar se a contagem de "Casos" e "Pontos" está correta por IOL
+- [x] Verificar se os dados de Snellen estão sendo convertidos/exibidos corretamente (possível inversão)
+- [x] Verificar a query de agregação de medições por IOL no backend
 
 ## Bug Fix - Painel Admin: Inconsistências nas Medidas das IOLs
 - [x] Corrigir adminGetIOLStats: totalDoctors usava patients.userId (dono do paciente) em vez de measurements.userId (médico que mediu)
@@ -348,3 +348,7 @@
 - [x] Adicionar patientIolId ao SELECT do adminGetIOLCurve para permitir contagem correta de implantes
 - [x] Corrigir teste defocus.test.ts: iols.compare é protectedProcedure mas teste usava unauthContext
 - [x] Adicionar testes unitários para lógica de agregação do adminGetIOLStats e adminGetIOLCurve
+
+## Configuração de Produção
+- [x] Definir APP_PUBLIC_URL como https://defocusapp.com no ambiente Autoscale
+- [x] Validar a configuração e preparar a nova publicação
