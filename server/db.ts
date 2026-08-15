@@ -464,95 +464,120 @@ export async function deleteMeasurementPoints(measurementId: number) {
  * A função retorna uma linha por par medição–implante: uma medição binocular
  * pode ter duas linhas quando a mesma IOL foi implantada em OD e OS.
  */
+export type IOLImplantForAssociation = {
+  id: number;
+  patientId: number;
+  eye: "OD" | "OS" | "OU";
+  refractiveTarget: string | null;
+};
+
+export type MeasurementForAssociation = {
+  measurementId: number;
+  patientId: number;
+  patientIolId: number | null;
+  measurementDate: Date;
+  eye: "OD" | "OS" | "OU";
+  notes: string | null;
+  userId: number;
+};
+
+export type IOLMeasurementAssociation = {
+  measurementId: number;
+  measurementDate: Date;
+  eye: "OD" | "OS" | "OU";
+  notes: string | null;
+  userId: number;
+  matchedPatientIolId: number;
+  refractiveTarget: string | null;
+};
+
+/** Aplica a regra clínica de associação sem depender de recursos SQL do banco. */
+export function associateIOLMeasurements(
+  implants: IOLImplantForAssociation[],
+  measurementRows: MeasurementForAssociation[]
+): IOLMeasurementAssociation[] {
+  const implantsByPatient = new Map<number, IOLImplantForAssociation[]>();
+  for (const implant of implants) {
+    const patientImplants = implantsByPatient.get(implant.patientId) ?? [];
+    patientImplants.push(implant);
+    implantsByPatient.set(implant.patientId, patientImplants);
+  }
+
+  const associations: IOLMeasurementAssociation[] = [];
+  for (const measurement of measurementRows) {
+    const patientImplants = implantsByPatient.get(measurement.patientId) ?? [];
+    let matches: IOLImplantForAssociation[] = [];
+
+    if (measurement.patientIolId !== null) {
+      matches = patientImplants.filter((implant) => implant.id === measurement.patientIolId);
+    } else if (measurement.eye === "OD" || measurement.eye === "OS") {
+      matches = patientImplants.filter(
+        (implant) => implant.eye === measurement.eye || implant.eye === "OU"
+      );
+    } else {
+      const hasBilateralImplant = patientImplants.some((implant) => implant.eye === "OU");
+      const hasOD = patientImplants.some((implant) => implant.eye === "OD" || implant.eye === "OU");
+      const hasOS = patientImplants.some((implant) => implant.eye === "OS" || implant.eye === "OU");
+      if (hasBilateralImplant || (hasOD && hasOS)) matches = patientImplants;
+    }
+
+    for (const implant of matches) {
+      associations.push({
+        measurementId: measurement.measurementId,
+        measurementDate: measurement.measurementDate,
+        eye: measurement.eye,
+        notes: measurement.notes,
+        userId: measurement.userId,
+        matchedPatientIolId: implant.id,
+        refractiveTarget: implant.refractiveTarget,
+      });
+    }
+  }
+
+  return associations;
+}
+
 async function getIOLMeasurementAssociations(iolId: number) {
   const db = await getDb();
   if (!db) return [];
 
-  // Vincula medição a implante.
+  // TiDB não admite subqueries na cláusula ON. Primeiro carregamos apenas os
+  // implantes da IOL alvo e as medições dos respectivos pacientes; em seguida,
+  // aplicamos em memória a mesma regra clínica que antes estava no JOIN.
   //
-  // CORREÇÃO CIENTÍFICA: este JOIN ligava medição a implante apenas por
-  // patientId, ignorando o olho. Num paciente com LIO A no OD e LIO B no OS
-  // — mix-and-match, blended vision, ou troca de estratégia entre o primeiro e
-  // o segundo olho — a medição do OD casava com AMBOS os implantes e entrava
-  // como evidência das duas lentes. As curvas se misturavam em silêncio, e o
-  // viés era maior justamente na população premium com implante bilateral
-  // não idêntico.
-  //
-  // Regra agora:
-  //  1. measurements.patientIolId, quando preenchido, é o vínculo autoritativo;
-  //  2. medição monocular (OD/OS) sem vínculo: mesmo paciente e mesmo olho —
-  //     ou implante registrado como "OU", que cobre os dois olhos;
-  //  3. medição binocular ("OU") sem vínculo: só é atribuída a uma lente se
-  //     essa lente estiver nos DOIS olhos. Isso vale tanto para um implante
-  //     registrado como "OU" quanto para o registro em duas linhas (OD + OS),
-  //     que é o padrão normal quando as cirurgias têm datas diferentes.
-  //
-  // A parte (3) exige EXISTS: "a lente está nos dois olhos" é uma condição
-  // sobre o conjunto de implantes do paciente, não sobre a linha do JOIN, e
-  // portanto não cabe numa condição plana. Sem ela, todo paciente com a mesma
-  // lente bilateral registrada em duas linhas sumiria da amostra — exatamente
-  // a população mais limpa do estudo.
-  //
-  // GROUP BY deduplica o caso raro de dois implantes da mesma LIO no mesmo olho.
-  return db
+  // Regra clínica:
+  //  1. patientIolId explícito é autoritativo;
+  //  2. medição OD/OS sem vínculo casa com o mesmo olho ou com implante OU;
+  //  3. medição OU sem vínculo entra apenas se a IOL existir nos dois olhos
+  //     (ou se houver um implante registrado como OU).
+  const implants = await db
+    .select({
+      id: patientIols.id,
+      patientId: patientIols.patientId,
+      eye: patientIols.eye,
+      refractiveTarget: patientIols.refractiveTarget,
+    })
+    .from(patientIols)
+    .where(eq(patientIols.iolId, iolId));
+
+  if (implants.length === 0) return [];
+
+  const patientIds = Array.from(new Set(implants.map((implant) => implant.patientId)));
+  const measurementRows = await db
     .select({
       measurementId: measurements.id,
+      patientId: measurements.patientId,
+      patientIolId: measurements.patientIolId,
       measurementDate: measurements.measurementDate,
       eye: measurements.eye,
       notes: measurements.notes,
       userId: measurements.userId,
-      matchedPatientIolId: patientIols.id,
-      refractiveTarget: patientIols.refractiveTarget,
     })
     .from(measurements)
-    .innerJoin(
-      patientIols,
-      or(
-        // (1) vínculo explícito com o implante
-        eq(measurements.patientIolId, patientIols.id),
-        // (2) medição monocular sem vínculo
-        and(
-          isNull(measurements.patientIolId),
-          eq(patientIols.patientId, measurements.patientId),
-          inArray(measurements.eye, ["OD", "OS"]),
-          or(
-            eq(patientIols.eye, measurements.eye),
-            eq(patientIols.eye, "OU"),
-          ),
-        ),
-        // (3) medição binocular sem vínculo: exige a lente nos dois olhos
-        and(
-          isNull(measurements.patientIolId),
-          eq(patientIols.patientId, measurements.patientId),
-          eq(measurements.eye, "OU"),
-          or(
-            eq(patientIols.eye, "OU"),
-            sql`(EXISTS (
-                   SELECT 1 FROM ${patientIols} AS pi_od
-                   WHERE pi_od.patientId = ${measurements.patientId}
-                     AND pi_od.iolId = ${patientIols.iolId}
-                     AND pi_od.eye IN ('OD', 'OU')
-                 ) AND EXISTS (
-                   SELECT 1 FROM ${patientIols} AS pi_os
-                   WHERE pi_os.patientId = ${measurements.patientId}
-                     AND pi_os.iolId = ${patientIols.iolId}
-                     AND pi_os.eye IN ('OS', 'OU')
-                 ))`,
-          ),
-        ),
-      ),
-    )
-    .where(eq(patientIols.iolId, iolId))
-    .groupBy(
-      measurements.id,
-      measurements.measurementDate,
-      measurements.eye,
-      measurements.notes,
-      measurements.userId,
-      patientIols.id,
-      patientIols.refractiveTarget,
-    )
+    .where(inArray(measurements.patientId, patientIds))
     .orderBy(desc(measurements.measurementDate));
+
+  return associateIOLMeasurements(implants, measurementRows);
 }
 
 /**

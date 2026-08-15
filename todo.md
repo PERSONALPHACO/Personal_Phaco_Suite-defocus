@@ -362,3 +362,8 @@
 - [x] Sanitizar a geração de PDF e bloquear requisições externas do Chromium
 - [x] Escapar conteúdo de e-mails e proteger o CSV contra injeção de fórmulas
 - [x] Criar e executar testes de regressão de segurança antes da publicação
+
+## Bug Fix — Consulta de Curvas de IOL no TiDB
+- [x] Diagnosticar a falha da subconsulta correlacionada ao carregar /iols
+- [x] Implementar associação por olho compatível com TiDB sem perder a regra clínica
+- [x] Validar a biblioteca de IOLs e as agregações de comparação/admin
