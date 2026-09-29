@@ -1,13 +1,46 @@
+/**
+ * Configuração lida do ambiente. Getters, e não valores congelados no import:
+ * testes e o boot leem o valor atual de process.env.
+ */
 export const ENV = {
-  appId: process.env.VITE_APP_ID ?? "",
-  cookieSecret: process.env.JWT_SECRET ?? "",
-  databaseUrl: process.env.DATABASE_URL ?? "",
-  oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
-  ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
-  isProduction: process.env.NODE_ENV === "production",
-  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  get cookieSecret() { return process.env.JWT_SECRET ?? ""; },
+  get databaseUrl() { return process.env.DATABASE_URL ?? ""; },
+  /** openId da conta dona (ex.: "email:renato@personalphaco.com") — vira admin. */
+  get ownerOpenId() { return (process.env.OWNER_OPEN_ID ?? "").trim(); },
+  get isProduction() { return process.env.NODE_ENV === "production"; },
 };
+
+/** Tamanho mínimo do segredo de sessão. `openssl rand -base64 48` gera 64. */
+export const MIN_JWT_SECRET_LENGTH = 32;
+
+/**
+ * Segredo de assinatura das sessões.
+ *
+ * SEGURANÇA: era opcional (`?? ""`). Sem a variável, os tokens eram assinados
+ * com chave vazia e qualquer pessoa forjaria uma sessão de administrador.
+ */
+export function requireJwtSecret(): string {
+  const secret = process.env.JWT_SECRET ?? "";
+  if (secret.length < MIN_JWT_SECRET_LENGTH) {
+    throw new Error(
+      `JWT_SECRET ausente ou curto (mínimo ${MIN_JWT_SECRET_LENGTH} caracteres).`
+    );
+  }
+  return secret;
+}
+
+/**
+ * Porta HTTP. PORT inválida virava porta aleatória com log dizendo que estava
+ * tudo bem; agora é erro de boot.
+ */
+export function resolvePort(): number {
+  const raw = (process.env.PORT ?? "").trim();
+  if (!raw) return 8080;
+  if (!/^\d+$/.test(raw)) throw new Error(`PORT inválida: "${raw}"`);
+  const port = Number(raw);
+  if (port < 1 || port > 65535) throw new Error(`PORT fora do intervalo: ${port}`);
+  return port;
+}
 
 /**
  * URL pública canônica da aplicação (ex.: https://defocusapp.com).
@@ -72,6 +105,7 @@ export function assertRequiredEnv(): void {
   const missing: string[] = [];
   if (!getAppPublicUrl()) missing.push("APP_PUBLIC_URL");
   if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
   if (missing.length > 0) {
     throw new Error(
       `Variáveis de ambiente obrigatórias ausentes: ${missing.join(", ")}.`
@@ -81,4 +115,6 @@ export function assertRequiredEnv(): void {
   // Valida também o formato. Sem isso, uma configuração como ftp:// ou uma URL
   // com credenciais só falharia na primeira solicitação de redefinição de senha.
   requireAppPublicUrl();
+  requireJwtSecret();
+  resolvePort();
 }

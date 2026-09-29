@@ -1,0 +1,385 @@
+{
+  "_fonte": "Catálogo reconstruído das consultas registradas pela Manus (.manus/db), respeitando o DELETE de 2026-03-31: só vale o que foi inserido depois dele.",
+  "manufacturers": [
+    {
+      "name": "Zeiss",
+      "country": "Alemanha"
+    },
+    {
+      "name": "Alcon",
+      "country": "Estados Unidos"
+    },
+    {
+      "name": "Johnson & Johnson Vision",
+      "country": "Estados Unidos"
+    },
+    {
+      "name": "Hoya",
+      "country": "Japão"
+    },
+    {
+      "name": "Rayner",
+      "country": "Reino Unido"
+    },
+    {
+      "name": "Bausch & Lomb",
+      "country": "Estados Unidos"
+    },
+    {
+      "name": "Hanita Lenses",
+      "country": "Israel"
+    },
+    {
+      "name": "Teleon Surgical",
+      "country": "Alemanha"
+    },
+    {
+      "name": "PhysIOL",
+      "country": "Bélgica"
+    },
+    {
+      "name": "Medicontour (Vertek)",
+      "country": "Brasil"
+    },
+    {
+      "name": "Biotech",
+      "country": "França"
+    },
+    {
+      "name": "Leedsay",
+      "country": "China"
+    }
+  ],
+  "iols": [
+    {
+      "manufacturer": "Zeiss",
+      "model": "204 (Esférica)",
+      "type": "monofocal",
+      "aConstant": 118.0
+    },
+    {
+      "manufacturer": "Zeiss",
+      "model": "509 (Asférica)",
+      "type": "monofocal",
+      "aConstant": 118.0
+    },
+    {
+      "manufacturer": "Zeiss",
+      "model": "709 (Tórica)",
+      "type": "toric",
+      "aConstant": 118.0
+    },
+    {
+      "manufacturer": "Zeiss",
+      "model": "Bifocal / Bi tórica",
+      "type": "bifocal",
+      "aConstant": 118.0
+    },
+    {
+      "manufacturer": "Zeiss",
+      "model": "AT LARA 829MP (EDOF)",
+      "type": "edof",
+      "aConstant": 118.3
+    },
+    {
+      "manufacturer": "Zeiss",
+      "model": "AT LISA tri 839MP / Tri tórica",
+      "type": "trifocal",
+      "aConstant": 118.6
+    },
+    {
+      "manufacturer": "Zeiss",
+      "model": "Elana",
+      "type": "monofocal",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Alcon",
+      "model": "MA60 (Esférica)",
+      "type": "monofocal",
+      "aConstant": 118.4
+    },
+    {
+      "manufacturer": "Alcon",
+      "model": "AcrySof IQ (Asférica WF)",
+      "type": "monofocal",
+      "aConstant": 118.7
+    },
+    {
+      "manufacturer": "Alcon",
+      "model": "PanOptix / PanOptix Tórica",
+      "type": "trifocal",
+      "aConstant": 119.1
+    },
+    {
+      "manufacturer": "Alcon",
+      "model": "Vivity / Vivity Tórica",
+      "type": "edof",
+      "aConstant": 119.1
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "AR40E",
+      "type": "monofocal",
+      "aConstant": 119.0
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "Sensar One",
+      "type": "monofocal",
+      "aConstant": 119.0
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "Tecnis One (Asférica Preload)",
+      "type": "monofocal",
+      "aConstant": 119.3
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "Tecnis Tórica",
+      "type": "toric",
+      "aConstant": 119.3
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "Tecnis Bifocal / Bifocal Tórica",
+      "type": "bifocal",
+      "aConstant": 119.3
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "Tecnis Symfony / Symfony Tórica",
+      "type": "edof",
+      "aConstant": 119.3
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "Tecnis Synergy",
+      "type": "trifocal",
+      "aConstant": 119.3
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "Tecnis Eyhance (Mono-plus) / Tórica",
+      "type": "monofocal",
+      "aConstant": 119.3
+    },
+    {
+      "manufacturer": "Johnson & Johnson Vision",
+      "model": "Tecnis PureSee",
+      "type": "edof",
+      "aConstant": 119.3
+    },
+    {
+      "manufacturer": "Hoya",
+      "model": "PC60R (3 peças)",
+      "type": "monofocal",
+      "aConstant": 118.5
+    },
+    {
+      "manufacturer": "Hoya",
+      "model": "iSert 151 (Esférica)",
+      "type": "monofocal",
+      "aConstant": 118.4
+    },
+    {
+      "manufacturer": "Hoya",
+      "model": "iSert 255 (Asférica)",
+      "type": "monofocal",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Hoya",
+      "model": "Nanex (Asférica)",
+      "type": "monofocal",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Hoya",
+      "model": "Vivinex (Asférica / Tórica)",
+      "type": "toric",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Hoya",
+      "model": "Vivinex Impress",
+      "type": "monofocal",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Hoya",
+      "model": "Gemetric Trifocal / Trifocal Tórica",
+      "type": "trifocal",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Rayner",
+      "model": "RayOne Esférica",
+      "type": "monofocal",
+      "aConstant": 118.0
+    },
+    {
+      "manufacturer": "Rayner",
+      "model": "RayOne Asférica / Tórica",
+      "type": "toric",
+      "aConstant": 118.6
+    },
+    {
+      "manufacturer": "Rayner",
+      "model": "RayOne Trifocal / Trifocal Tórica",
+      "type": "trifocal",
+      "aConstant": 118.6
+    },
+    {
+      "manufacturer": "Bausch & Lomb",
+      "model": "enVista Asférica",
+      "type": "monofocal",
+      "aConstant": 119.1
+    },
+    {
+      "manufacturer": "Bausch & Lomb",
+      "model": "enVista Tórica",
+      "type": "toric",
+      "aConstant": 119.1
+    },
+    {
+      "manufacturer": "Hanita Lenses",
+      "model": "Seelens MF",
+      "type": "bifocal",
+      "aConstant": 118.5
+    },
+    {
+      "manufacturer": "Hanita Lenses",
+      "model": "Intensity (Pentafocal)",
+      "type": "trifocal",
+      "aConstant": 118.7
+    },
+    {
+      "manufacturer": "Hanita Lenses",
+      "model": "FullRange",
+      "type": "edof",
+      "aConstant": 118.6
+    },
+    {
+      "manufacturer": "Hanita Lenses",
+      "model": "Extend",
+      "type": "edof",
+      "aConstant": 118.5
+    },
+    {
+      "manufacturer": "Teleon Surgical",
+      "model": "LENTIS Comfort LS-313 MF15",
+      "type": "edof",
+      "aConstant": 118.5
+    },
+    {
+      "manufacturer": "Teleon Surgical",
+      "model": "LENTIS Mplus",
+      "type": "bifocal",
+      "aConstant": 118.5
+    },
+    {
+      "manufacturer": "Teleon Surgical",
+      "model": "Acunex",
+      "type": "monofocal",
+      "aConstant": 119.1
+    },
+    {
+      "manufacturer": "Teleon Surgical",
+      "model": "Femtis",
+      "type": "monofocal",
+      "aConstant": 118.5
+    },
+    {
+      "manufacturer": "PhysIOL",
+      "model": "Asférica Preload (MicroPure/IsoPure)",
+      "type": "monofocal",
+      "aConstant": 119.4
+    },
+    {
+      "manufacturer": "PhysIOL",
+      "model": "Tórica / Trifocal FineVision / Tri tórica",
+      "type": "trifocal",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Medicontour (Vertek)",
+      "model": "Acryfold Mono Esférica",
+      "type": "monofocal",
+      "aConstant": 118.0
+    },
+    {
+      "manufacturer": "Medicontour (Vertek)",
+      "model": "Monoplus POBMA",
+      "type": "monofocal",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Medicontour (Vertek)",
+      "model": "Biflex Mono Tórica",
+      "type": "toric",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Medicontour (Vertek)",
+      "model": "Liberty Trifocal",
+      "type": "trifocal",
+      "aConstant": 118.9
+    },
+    {
+      "manufacturer": "Medicontour (Vertek)",
+      "model": "Addon Trifocal (Sulcoflex)",
+      "type": "trifocal",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Biotech",
+      "model": "Monofocal Hidrofílica (90H)",
+      "type": "monofocal",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Biotech",
+      "model": "Asférica Hidrofóbica (Branca/Amarela)",
+      "type": "monofocal",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Biotech",
+      "model": "Asférica Tórica",
+      "type": "toric",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Biotech",
+      "model": "Mono-Plus / EDOF / Tórica",
+      "type": "edof",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Biotech",
+      "model": "Bifocal / Tórica",
+      "type": "bifocal",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Biotech",
+      "model": "Trifocal / Trifocal Tórica",
+      "type": "trifocal",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Biotech",
+      "model": "Eyecryl Fácica",
+      "type": "monofocal",
+      "aConstant": null
+    },
+    {
+      "manufacturer": "Leedsay",
+      "model": "ASF / Tórica / Bifocal / Trifocal / Tri tórica",
+      "type": "trifocal",
+      "aConstant": null
+    }
+  ]
+}

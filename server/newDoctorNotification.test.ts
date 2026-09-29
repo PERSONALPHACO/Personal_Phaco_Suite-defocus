@@ -20,12 +20,11 @@ vi.mock("./_core/email", () => ({
   sendNewDoctorNotification: vi.fn().mockResolvedValue(true),
 }));
 
-// Mock SDK
-vi.mock("./_core/sdk", () => ({
-  sdk: {
-    createSessionToken: vi.fn().mockResolvedValue("mock-session-token"),
-    authenticateRequest: vi.fn().mockResolvedValue(null),
-  },
+// Mock da sessão própria
+vi.mock("./_core/session", () => ({
+  SESSION_TTL_MS: 30 * 24 * 60 * 60 * 1000,
+  createSessionToken: vi.fn().mockResolvedValue("mock-session-token"),
+  authenticateRequest: vi.fn().mockResolvedValue(null),
 }));
 
 import { getUserByEmail, createUserWithPassword, adminGetAllAdminEmails } from "./db";

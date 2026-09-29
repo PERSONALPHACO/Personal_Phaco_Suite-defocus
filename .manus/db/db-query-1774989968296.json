@@ -1,9 +1,0 @@
-{
-  "query": "INSERT INTO iols (manufacturerId, model, type, aConstant) VALUES\n(4, 'PC60R (3 peças)', 'monofocal', 118.5),\n(4, 'iSert 151 (Esférica)', 'monofocal', 118.4),\n(4, 'iSert 255 (Asférica)', 'monofocal', 118.9),\n(4, 'Nanex (Asférica)', 'monofocal', 118.9),\n(4, 'Vivinex (Asférica / Tórica)', 'toric', 118.9),\n(4, 'Vivinex Impress', 'monofocal', 118.9),\n(4, 'Gemetric Trifocal / Trifocal Tórica', 'trifocal', 118.9),\n(5, 'RayOne Esférica', 'monofocal', 118.0),\n(5, 'RayOne Asférica / Tórica', 'toric', 118.6),\n(5, 'RayOne Trifocal / Trifocal Tórica', 'trifocal', 118.6),\n(6, 'enVista Asférica', 'monofocal', 119.1),\n(6, 'enVista Tórica', 'toric', 119.1);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2TfTURkauT7WU37.root --database n7THbuCkaLecDawSNhBVgp --execute INSERT INTO iols (manufacturerId, model, type, aConstant) VALUES\n(4, 'PC60R (3 peças)', 'monofocal', 118.5),\n(4, 'iSert 151 (Esférica)', 'monofocal', 118.4),\n(4, 'iSert 255 (Asférica)', 'monofocal', 118.9),\n(4, 'Nanex (Asférica)', 'monofocal', 118.9),\n(4, 'Vivinex (Asférica / Tórica)', 'toric', 118.9),\n(4, 'Vivinex Impress', 'monofocal', 118.9),\n(4, 'Gemetric Trifocal / Trifocal Tórica', 'trifocal', 118.9),\n(5, 'RayOne Esférica', 'monofocal', 118.0),\n(5, 'RayOne Asférica / Tórica', 'toric', 118.6),\n(5, 'RayOne Trifocal / Trifocal Tórica', 'trifocal', 118.6),\n(6, 'enVista Asférica', 'monofocal', 119.1),\n(6, 'enVista Tórica', 'toric', 119.1);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 62
-}

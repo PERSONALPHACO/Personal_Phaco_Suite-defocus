@@ -21,7 +21,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const LOGO_URL =
-  "https://static-assets.manus.space/file/manus-webdev-static-assets/logodefocusapp.webp";
+  "/logo-defocusapp.webp";
 
 const CHART_COLORS = [
   "#2563eb", // blue-600

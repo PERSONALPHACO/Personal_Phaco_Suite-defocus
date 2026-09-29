@@ -20,7 +20,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   Activity,
@@ -171,7 +170,7 @@ function DefocusLayoutContent({
               {!isCollapsed && (
                 <div className="flex items-center min-w-0">
                   <img
-                    src="https://d2xsxph8kpxj0f.cloudfront.net/310519663364551298/n7THbuCkaLecDawSNhBVgp/logodefocusapp_3f62e833.webp"
+                    src="/logo-defocusapp.webp"
                     alt="DefocusApp"
                     className="h-9 w-auto object-contain"
                   />

@@ -8,6 +8,8 @@ import {
   decimal,
   boolean,
   date,
+  index,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 /**
@@ -15,7 +17,8 @@ import {
  */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  // 400: cabe "email:" + e-mail de até 320 caracteres (era 64).
+  openId: varchar("openId", { length: 400 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
@@ -28,7 +31,7 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
-});
+}, (t) => [uniqueIndex("users_email_unique").on(t.email)]);
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -63,7 +66,7 @@ export const iols = mysqlTable("iols", {
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => [index("iols_manufacturer_idx").on(t.manufacturerId)]);
 
 export type IOL = typeof iols.$inferSelect;
 export type InsertIOL = typeof iols.$inferInsert;
@@ -85,7 +88,7 @@ export const patients = mysqlTable("patients", {
   lgpdConsentDate: timestamp("lgpdConsentDate"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => [index("patients_user_idx").on(t.userId)]);
 
 export type Patient = typeof patients.$inferSelect;
 export type InsertPatient = typeof patients.$inferInsert;
@@ -103,7 +106,7 @@ export const patientIols = mysqlTable("patient_iols", {
   refractiveTarget: decimal("refractiveTarget", { precision: 4, scale: 2 }), // ex: -0.25, 0.00, +0.50
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => [index("patient_iols_patient_idx").on(t.patientId), index("patient_iols_iol_idx").on(t.iolId)]);
 
 export type PatientIOL = typeof patientIols.$inferSelect;
 export type InsertPatientIOL = typeof patientIols.$inferInsert;
@@ -122,7 +125,7 @@ export const measurements = mysqlTable("measurements", {
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => [index("measurements_patient_idx").on(t.patientId), index("measurements_user_idx").on(t.userId), index("measurements_patient_iol_idx").on(t.patientIolId)]);
 
 export type Measurement = typeof measurements.$inferSelect;
 export type InsertMeasurement = typeof measurements.$inferInsert;
@@ -137,7 +140,7 @@ export const measurementPoints = mysqlTable("measurement_points", {
   diopter: decimal("diopter", { precision: 4, scale: 2 }).notNull(), // ex: -3.00, -2.50, ..., 0.00, +0.50
   visualAcuity: decimal("visualAcuity", { precision: 4, scale: 2 }).notNull(), // logMAR ou decimal (0.0 a 1.0+)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => [index("measurement_points_measurement_idx").on(t.measurementId)]);
 
 export type MeasurementPoint = typeof measurementPoints.$inferSelect;
 export type InsertMeasurementPoint = typeof measurementPoints.$inferInsert;
@@ -153,7 +156,7 @@ export const passwordResetTokens = mysqlTable("password_reset_tokens", {
   expiresAt: timestamp("expiresAt").notNull(),
   usedAt: timestamp("usedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => [index("password_reset_tokens_user_idx").on(t.userId)]);
 
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;

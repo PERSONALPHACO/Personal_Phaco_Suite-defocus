@@ -1,9 +1,0 @@
-{
-  "query": "INSERT INTO iols (manufacturerId, model, type, aConstant) VALUES\n(1, '204 (Esférica)', 'monofocal', 118.0),\n(1, '509 (Asférica)', 'monofocal', 118.0),\n(1, '709 (Tórica)', 'toric', 118.0),\n(1, 'Bifocal / Bi tórica', 'bifocal', 118.0),\n(1, 'AT LARA 829MP (EDOF)', 'edof', 118.3),\n(1, 'AT LISA tri 839MP / Tri tórica', 'trifocal', 118.6),\n(1, 'Elana', 'monofocal', NULL);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2TfTURkauT7WU37.root --database n7THbuCkaLecDawSNhBVgp --execute INSERT INTO iols (manufacturerId, model, type, aConstant) VALUES\n(1, '204 (Esférica)', 'monofocal', 118.0),\n(1, '509 (Asférica)', 'monofocal', 118.0),\n(1, '709 (Tórica)', 'toric', 118.0),\n(1, 'Bifocal / Bi tórica', 'bifocal', 118.0),\n(1, 'AT LARA 829MP (EDOF)', 'edof', 118.3),\n(1, 'AT LISA tri 839MP / Tri tórica', 'trifocal', 118.6),\n(1, 'Elana', 'monofocal', NULL);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 77
-}
