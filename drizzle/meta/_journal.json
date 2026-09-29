@@ -43,6 +43,13 @@
       "when": 1775397617553,
       "tag": "0005_stormy_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1790703168140,
+      "tag": "0006_indices_e_email_unico",
+      "breakpoints": true
     }
   ]
 }

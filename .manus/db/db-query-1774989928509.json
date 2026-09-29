@@ -1,9 +1,0 @@
-{
-  "query": "DELETE FROM iols; DELETE FROM manufacturers; ALTER TABLE manufacturers AUTO_INCREMENT = 1; ALTER TABLE iols AUTO_INCREMENT = 1;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2TfTURkauT7WU37.root --database n7THbuCkaLecDawSNhBVgp --execute DELETE FROM iols; DELETE FROM manufacturers; ALTER TABLE manufacturers AUTO_INCREMENT = 1; ALTER TABLE iols AUTO_INCREMENT = 1;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 205
-}

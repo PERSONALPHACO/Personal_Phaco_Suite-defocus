@@ -1,4 +1,3 @@
-import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
@@ -41,11 +40,17 @@ export function useAuth(options?: UseAuthOptions) {
     }
   }, [logoutMutation, utils]);
 
+  // Limpeza única: a versão antiga gravava aqui o usuário completo — hash de
+  // senha incluído — e o valor persiste no navegador de quem já usou o app.
+  useEffect(() => {
+    try {
+      localStorage.removeItem("manus-runtime-user-info");
+    } catch {
+      /* storage indisponível: nada a limpar */
+    }
+  }, []);
+
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
     return {
       user: meQuery.data ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,

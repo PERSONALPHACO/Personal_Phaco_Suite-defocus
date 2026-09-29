@@ -265,7 +265,9 @@ export async function generatePDFReport(data: PDFReportData): Promise<Buffer> {
 </html>`;
 
   const browser = await puppeteer.launch({
-    executablePath: "/usr/bin/chromium-browser",
+    // Caminho do Chromium vem do ambiente (a imagem Docker define); o antigo
+    // "/usr/bin/chromium-browser" existia só no ambiente da plataforma.
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",

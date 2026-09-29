@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
-import { sdk } from "./_core/sdk";
+import { createSessionToken, SESSION_TTL_MS } from "./_core/session";
 import { generateDefocusCurve, computeFunctionalArea } from "./defocusCurve";
 import bcrypt from "bcryptjs";
 import { sendPasswordResetEmail, sendNewDoctorNotification } from "./_core/email";
@@ -110,9 +110,9 @@ export const appRouter = router({
         // Fetch the created user and create session
         const user = await getUserByEmail(input.email);
         if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar conta." });
-        const token = await sdk.createSessionToken(user.openId, { name: user.name ?? "" });
+        const token = await createSessionToken(user.openId);
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: SESSION_TTL_MS });
 
         // Notify all admins asynchronously (does not block registration)
         setImmediate(async () => {
@@ -151,9 +151,9 @@ export const appRouter = router({
         if (!valid) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha incorretos." });
         }
-        const token = await sdk.createSessionToken(user.openId, { name: user.name ?? "" });
+        const token = await createSessionToken(user.openId);
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: SESSION_TTL_MS });
         return { success: true, user: { id: user.id, name: user.name, email: user.email } };
       }),
 

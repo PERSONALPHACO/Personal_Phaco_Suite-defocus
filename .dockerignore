@@ -1,0 +1,10 @@
+# Nunca levar segredos para dentro de uma camada da imagem.
+.env
+.env.*
+!.env.example
+node_modules
+dist
+.git
+.manus-logs
+*.log
+*.patch

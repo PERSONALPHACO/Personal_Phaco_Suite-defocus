@@ -1,6 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
-import { sdk } from "./sdk";
+import { authenticateRequest } from "./session";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -12,17 +12,15 @@ export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
   let user: User | null = null;
-
   try {
-    user = await sdk.authenticateRequest(opts.req);
+    user = await authenticateRequest(opts.req);
   } catch (error) {
-    // Authentication is optional for public procedures.
+    // Sessão ausente/inválida é normal em rotas públicas. Erro de configuração
+    // (JWT_SECRET) não é: registra para não virar "não autenticado" silencioso.
+    if (error instanceof Error && error.message.startsWith("JWT_SECRET")) {
+      console.error("[Auth]", error.message);
+    }
     user = null;
   }
-
-  return {
-    req: opts.req,
-    res: opts.res,
-    user,
-  };
+  return { req: opts.req, res: opts.res, user };
 }
