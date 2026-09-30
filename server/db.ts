@@ -303,10 +303,38 @@ export async function updatePatient(id: number, userId: number, data: Partial<In
   await db.update(patients).set(data).where(and(eq(patients.id, id), eq(patients.userId, userId)));
 }
 
+/**
+ * Apaga o paciente e tudo o que pende dele — implantes, medições e pontos —
+ * numa única transação.
+ *
+ * Antes apagava só a linha de `patients`: implantes e medições ficavam órfãos
+ * e continuavam entrando nas estatísticas e curvas agregadas do painel admin
+ * (o banco não tem chaves estrangeiras com cascata). Numa plataforma cujo
+ * valor é a evidência agregada, isso contaminava os números.
+ */
 export async function deletePatient(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(patients).where(and(eq(patients.id, id), eq(patients.userId, userId)));
+  await db.transaction(async (tx) => {
+    const owned = await tx
+      .select({ id: patients.id })
+      .from(patients)
+      .where(and(eq(patients.id, id), eq(patients.userId, userId)))
+      .limit(1);
+    if (owned.length === 0) return; // não é do médico: nada a apagar
+
+    const ms = await tx
+      .select({ id: measurements.id })
+      .from(measurements)
+      .where(eq(measurements.patientId, id));
+    const measurementIds = ms.map((m) => m.id);
+    if (measurementIds.length > 0) {
+      await tx.delete(measurementPoints).where(inArray(measurementPoints.measurementId, measurementIds));
+      await tx.delete(measurements).where(inArray(measurements.id, measurementIds));
+    }
+    await tx.delete(patientIols).where(eq(patientIols.patientId, id));
+    await tx.delete(patients).where(eq(patients.id, id));
+  });
 }
 
 // ───// ─── Patient IOLs ─────────────────────────────────────────────────────
