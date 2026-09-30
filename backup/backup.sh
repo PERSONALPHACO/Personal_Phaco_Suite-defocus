@@ -47,7 +47,9 @@ if [ -n "${AGE_IDENTITY:-}" ]; then
   echo "[verify] baixando de volta e restaurando em banco temporário…"
   printf '%s\n' "$AGE_IDENTITY" > "$TMP/id.txt"; chmod 600 "$TMP/id.txt"
   rclone copyto "r2:${R2_BUCKET}/${NAME}" "$TMP/back.age"
-  cmp -s "$TMP/back.age" "$TMP/$NAME" || { echo "[verify] arquivo baixado difere do enviado" >&2; exit 1; }
+  # sha256sum (coreutils) — a imagem não tem cmp (diffutils).
+  [ "$(sha256sum < "$TMP/back.age")" = "$(sha256sum < "$TMP/$NAME")" ] || { echo "[verify] arquivo baixado difere do enviado" >&2; exit 1; }
+  echo "[verify] arquivo no R2 idêntico ao enviado"
   RT="restore_test_$$"
   mysql -h "$MYSQLHOST" -P "$MYSQLPORT" -u "$MYSQLUSER" -e "CREATE DATABASE \`$RT\`"
   age -d -i "$TMP/id.txt" "$TMP/back.age" | gunzip | \
