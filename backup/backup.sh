@@ -19,8 +19,15 @@ NAME="defocusapp-${STAMP}.sql.gz.age"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export MYSQL_PWD="$MYSQLPASSWORD"   # não aparece na lista de processos
-ENDPOINT="${S3_ENDPOINT:-https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com}"   # S3_ENDPOINT só para teste local
-S3AUTH=(--aws-sigv4 "aws:amz:${S3_REGION:-auto}:s3" --user "${R2_ACCESS_KEY_ID}:${R2_SECRET_ACCESS_KEY}")
+# Upload via rclone (suporte nativo ao R2). O curl 7.76 da imagem mysql não
+# envia x-amz-content-sha256 na assinatura SigV4 e o R2 responde 400.
+export RCLONE_CONFIG_R2_TYPE=s3
+export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+export RCLONE_CONFIG_R2_ENDPOINT="${S3_ENDPOINT:-https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com}"
+export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true   # token só tem acesso a objetos
+export RCLONE_CONFIG_R2_REGION=auto
 
 echo "[backup] dump de ${MYSQLDATABASE}…"
 mysqldump -h "$MYSQLHOST" -P "$MYSQLPORT" -u "$MYSQLUSER" \
@@ -32,16 +39,14 @@ SIZE=$(stat -c %s "$TMP/$NAME")
 [ "$SIZE" -gt 200 ] || { echo "[backup] arquivo suspeito (${SIZE} bytes)" >&2; exit 1; }
 
 echo "[backup] enviando ${NAME} (${SIZE} bytes) para R2…"
-curl -sS --fail-with-body "${S3AUTH[@]}" -T "$TMP/$NAME" \
-  -H "Content-Type: application/octet-stream" \
-  "${ENDPOINT}/${R2_BUCKET}/${NAME}" -o /dev/null
+rclone copyto --s3-no-check-bucket --retries 3 "$TMP/$NAME" "r2:${R2_BUCKET}/${NAME}"
 echo "[backup] OK ${NAME}"
 
 # ── Verificação de restauração (opcional) ──────────────────────────────────
 if [ -n "${AGE_IDENTITY:-}" ]; then
   echo "[verify] baixando de volta e restaurando em banco temporário…"
   printf '%s\n' "$AGE_IDENTITY" > "$TMP/id.txt"; chmod 600 "$TMP/id.txt"
-  curl -sS --fail-with-body "${S3AUTH[@]}" "${ENDPOINT}/${R2_BUCKET}/${NAME}" -o "$TMP/back.age"
+  rclone copyto "r2:${R2_BUCKET}/${NAME}" "$TMP/back.age"
   cmp -s "$TMP/back.age" "$TMP/$NAME" || { echo "[verify] arquivo baixado difere do enviado" >&2; exit 1; }
   RT="restore_test_$$"
   mysql -h "$MYSQLHOST" -P "$MYSQLPORT" -u "$MYSQLUSER" -e "CREATE DATABASE \`$RT\`"
