@@ -25,7 +25,6 @@ import { format } from "date-fns";
 type PatientFormData = {
   name: string;
   birthDate: string;
-  cpf: string;
   phone: string;
   email: string;
   notes: string;
@@ -63,7 +62,6 @@ export default function Patients() {
     createPatient.mutate({
       name: data.name,
       birthDate: data.birthDate || undefined,
-      cpf: data.cpf || undefined,
       phone: data.phone || undefined,
       email: data.email || undefined,
       notes: data.notes || undefined,
@@ -75,7 +73,6 @@ export default function Patients() {
     (p) =>
       !search ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.cpf || "").includes(search) ||
       (p.phone || "").includes(search)
   );
 
@@ -117,14 +114,6 @@ export default function Patients() {
                   <div className="space-y-1.5">
                     <Label>Data de Nascimento</Label>
                     <Input type="date" {...register("birthDate")} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>CPF</Label>
-                    <Input
-                      {...register("cpf")}
-                      placeholder="000.000.000-00"
-                      maxLength={14}
-                    />
                   </div>
                 </div>
 
@@ -204,7 +193,7 @@ export default function Patients() {
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, CPF ou telefone..."
+            placeholder="Buscar por nome ou telefone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"

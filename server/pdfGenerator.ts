@@ -55,27 +55,30 @@ export function sanitizePdfColor(value: unknown): string {
   return color;
 }
 
-function buildChartSvg(series: MeasurementSeries[]): string {
+export function buildChartSvg(series: MeasurementSeries[]): string {
   // Chart dimensions
   const W = 700, H = 320;
   const padL = 60, padR = 30, padT = 20, padB = 50;
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
 
-  // X axis: diopter from +1.0 to -3.5
+  // Eixo X — padrão Personal Phaco: +1,00 D à esquerda → −3,50 D à direita
+  // (longe → perto). Antes estava invertido, com −3,50 à esquerda, e as faixas
+  // "Longe/Intermédio/Perto" ficavam sobre as vergências erradas.
   const xMin = -3.5, xMax = 1.0;
   const xRange = xMax - xMin;
 
-  // Y axis: visual acuity (logMAR) from -0.1 to 0.7
-  const yMin = -0.1, yMax = 0.7;
+  // Eixo Y — logMAR, melhor para cima, faixa fixa −0,10 a 0,60 (padrão).
+  const yMin = -0.1, yMax = 0.6;
   const yRange = yMax - yMin;
 
-  const toX = (d: number) => padL + ((d - xMin) / xRange) * chartW;
-  const toY = (va: number) => padT + ((va - yMin) / yRange) * chartH;
+  const clampVa = (va: number) => Math.min(yMax, Math.max(yMin, va));
+  const toX = (d: number) => padL + ((xMax - d) / xRange) * chartW;
+  const toY = (va: number) => padT + ((clampVa(va) - yMin) / yRange) * chartH;
 
   // Grid lines
   const xTicks = [1.0, 0.5, 0.0, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5];
-  const yTicks = [-0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
+  const yTicks = [-0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
 
   let gridLines = "";
   for (const x of xTicks) {

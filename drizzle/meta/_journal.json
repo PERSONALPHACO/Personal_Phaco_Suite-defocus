@@ -57,6 +57,13 @@
       "when": 1790759753699,
       "tag": "0007_remove_orfaos",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1790977938049,
+      "tag": "0008_remove_cpf",
+      "breakpoints": true
     }
   ]
 }
