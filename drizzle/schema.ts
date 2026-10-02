@@ -80,7 +80,6 @@ export const patients = mysqlTable("patients", {
   userId: int("userId").notNull(), // médico responsável
   name: varchar("name", { length: 256 }).notNull(),
   birthDate: date("birthDate"),
-  cpf: varchar("cpf", { length: 14 }), // armazenado de forma segura
   phone: varchar("phone", { length: 20 }),
   email: varchar("email", { length: 320 }),
   notes: text("notes"),

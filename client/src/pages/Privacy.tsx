@@ -54,7 +54,7 @@ export default function Privacy() {
               <tbody>
                 {[
                   ["Dados do Médico", "Nome, e-mail, CRM (via autenticação)", "Autenticação e controle de acesso"],
-                  ["Dados do Paciente", "Nome, CPF, data de nascimento, telefone, e-mail", "Identificação e prontuário clínico"],
+                  ["Dados do Paciente", "Nome, data de nascimento, telefone, e-mail", "Identificação e prontuário clínico"],
                   ["Dados Clínicos", "Acuidade visual, IOL implantada, alvo refrativo, data de cirurgia", "Análise de performance e curvas Defocus"],
                   ["Dados Agregados", "Métricas anonimizadas de performance por tipo de IOL", "Pesquisa e relatórios para fabricantes"],
                 ].map(([cat, data, purpose]) => (
@@ -101,7 +101,7 @@ export default function Privacy() {
             </p>
             <ul className="mt-3 space-y-1.5 text-sm">
               {[
-                "Nenhum dado identificável do paciente (nome, CPF, data de nascimento) é incluído nos relatórios.",
+                "Nenhum dado identificável do paciente (nome, data de nascimento) é incluído nos relatórios.",
                 "Apenas métricas agregadas de performance (acuidade visual média por dioptria, por tipo de IOL) são compartilhadas.",
                 "Os dados são agrupados por fabricante e modelo de IOL, sem referência a indivíduos.",
                 "O compartilhamento ocorre somente mediante contrato de processamento de dados com o fabricante, conforme Art. 26 da LGPD.",
@@ -198,7 +198,7 @@ export default function Privacy() {
             </p>
             <div className="mt-3 p-4 rounded-lg border bg-card space-y-1.5 text-sm">
               <p><strong className="text-foreground">DefocusApp — Encarregado de Dados</strong></p>
-              <p className="text-muted-foreground">E-mail: privacidade@defocusapp.com.br</p>
+              <p className="text-muted-foreground">E-mail: renato@personalphaco.com</p>
               <p className="text-muted-foreground">Prazo de resposta: até 15 dias úteis (conforme Art. 18, §5º, LGPD)</p>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">

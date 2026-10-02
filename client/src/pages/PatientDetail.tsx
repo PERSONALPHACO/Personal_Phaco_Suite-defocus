@@ -193,7 +193,7 @@ export default function PatientDetail() {
           ? `${format(new Date(m.measurementDate), "dd/MM/yy")} ${m.eye}${m.iolModel ? ` · ${m.iolModel}` : ""}`
           : `Medição ${id}`;
         const points = chartData
-          .filter((row: any) => row[`m_${id}`] !== undefined)
+          .filter((row: any) => typeof row[`m_${id}`] === "number" && typeof row.diopter === "number")
           .map((row: any) => ({
             diopter: row.diopter as number,
             visualAcuity: row[`m_${id}`] as number,
@@ -201,22 +201,8 @@ export default function PatientDetail() {
         return { id, label, color, points };
       });
 
-      // Build IOL list
-      const iolsList = (patientIols as any[]).map((piol: any) => ({
-        eye: piol.eye,
-        iolName: piol.iolModel || "IOL",
-        manufacturer: piol.manufacturerName || "",
-        surgeryDate: piol.surgeryDate
-          ? format(new Date(piol.surgeryDate), "dd/MM/yyyy")
-          : undefined,
-        refractiveTarget: piol.refractiveTarget ?? undefined,
-      }));
-
-      const result = await exportPDFMutation.mutateAsync({
-        caseId: `${patientId}`,
-        iols: iolsList,
-        series,
-      });
+      // A lista de LIOs e a posse do paciente são resolvidas no servidor.
+      const result = await exportPDFMutation.mutateAsync({ patientId, series });
 
       // Decode base64 and trigger download
       const byteChars = atob(result.pdf);
@@ -237,7 +223,7 @@ export default function PatientDetail() {
     } finally {
       setExportingPdf(false);
     }
-  }, [patientId, exportPdfData, measurements, patientIols, exportPDFMutation]);
+  }, [patientId, exportPdfData, measurements, exportPDFMutation]);
 
   const onSubmitIOL = (data: PatientIOLFormData) => {
     createPatientIOL.mutate({
@@ -348,7 +334,6 @@ export default function PatientDetail() {
               </CardHeader>
               <CardContent className="space-y-2.5">
                 {[
-                  { label: "CPF", value: patient.cpf },
                   { label: "Telefone", value: patient.phone },
                   { label: "E-mail", value: patient.email },
                   { label: "Notas", value: patient.notes },

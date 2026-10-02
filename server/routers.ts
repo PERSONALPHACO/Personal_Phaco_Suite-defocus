@@ -9,6 +9,7 @@ import { generateDefocusCurve, computeFunctionalArea } from "./defocusCurve";
 import bcrypt from "bcryptjs";
 import { sendPasswordResetEmail, sendNewDoctorNotification } from "./_core/email";
 import { requireAppPublicUrl } from "./_core/env";
+import { enforceRateLimit, clientIp } from "./_core/rateLimit";
 import { generatePDFReport, type PDFReportData } from "./pdfGenerator";
 import {
   getAllManufacturers,
@@ -100,6 +101,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        enforceRateLimit("registerIp", clientIp(ctx.req));
         // Check if email already in use
         const existing = await getUserByEmail(input.email);
         if (existing) {
@@ -143,6 +145,8 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        enforceRateLimit("loginIp", clientIp(ctx.req));
+        enforceRateLimit("loginEmail", input.email);
         const user = await getUserByEmail(input.email);
         if (!user || !user.passwordHash) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha incorretos." });
@@ -180,6 +184,7 @@ export const appRouter = router({
 
         // If changing password, validate current password
         if (input.newPassword) {
+          enforceRateLimit("passwordChangeUser", String(user.id));
           if (!input.currentPassword) {
             throw new TRPCError({ code: "BAD_REQUEST", message: "Informe a senha atual para alterar a senha." });
           }
@@ -220,7 +225,10 @@ export const appRouter = router({
       .input(z.object({
         email: z.string().email(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Limites antes de tudo: a resposta não depende de o e-mail existir.
+        enforceRateLimit("resetRequestIp", clientIp(ctx.req));
+        enforceRateLimit("resetRequestEmail", input.email);
         // SEGURANÇA: a base da URL vem exclusivamente da configuração do
         // servidor. Ela já foi um parâmetro de entrada, o que permitia a
         // qualquer pessoa fazer o app enviar um e-mail legítimo contendo um
@@ -263,7 +271,8 @@ export const appRouter = router({
         token: z.string().min(1),
         newPassword: z.string().min(8).max(128),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        enforceRateLimit("resetConfirmIp", clientIp(ctx.req));
         const resetToken = await getValidPasswordResetToken(input.token);
         if (!resetToken) {
           throw new TRPCError({
@@ -393,7 +402,6 @@ export const appRouter = router({
         z.object({
           name: z.string().min(1).max(256),
           birthDate: z.string().optional(), // ISO date string
-          cpf: z.string().max(14).optional(),
           phone: z.string().max(20).optional(),
           email: z.string().email().optional().or(z.literal("")),
           notes: z.string().optional(),
@@ -417,7 +425,6 @@ export const appRouter = router({
           id: z.number(),
           name: z.string().min(1).max(256).optional(),
           birthDate: z.string().optional(),
-          cpf: z.string().max(14).optional(),
           phone: z.string().max(20).optional(),
           email: z.string().email().optional().or(z.literal("")),
           notes: z.string().optional(),
@@ -439,35 +446,64 @@ export const appRouter = router({
     exportPDF: protectedProcedure
       .input(
         z.object({
-          caseId: z.string(),
-          iols: z.array(
-            z.object({
-              eye: z.string(),
-              iolName: z.string(),
-              manufacturer: z.string(),
-              surgeryDate: z.string().optional(),
-              refractiveTarget: z.string().optional(),
-            })
-          ),
-          series: z.array(
-            z.object({
-              id: z.number(),
-              label: z.string(),
-              color: z.string(),
-              points: z.array(
-                z.object({
-                  diopter: z.number(),
-                  visualAcuity: z.number(),
-                })
-              ),
-            })
-          ),
+          patientId: z.number().int().positive(),
+          // Os pontos chegam do cliente porque são a curva já exibida na tela
+          // (mesma agregação do gráfico). O servidor confere que cada série é
+          // uma medição DESTE paciente e limita tamanhos e faixas — o PDF
+          // roda num Chromium do servidor.
+          series: z
+            .array(
+              z.object({
+                id: z.number().int().positive(),
+                label: z.string().max(160),
+                color: z.string().max(32),
+                points: z
+                  .array(
+                    z.object({
+                      diopter: z.number().min(-6).max(3),
+                      visualAcuity: z.number().min(-0.5).max(2),
+                    })
+                  )
+                  .max(60),
+              })
+            )
+            .min(1)
+            .max(12),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // SEGURANÇA: antes o PDF era montado só com o que o cliente mandava,
+        // sem conferir dono — servia para gerar "laudo DefocusApp" de qualquer
+        // conteúdo. Agora o paciente precisa ser do médico logado, as séries
+        // precisam ser medições dele, e a lista de LIOs vem do banco.
+        const patient = await getPatientById(input.patientId, ctx.user.id);
+        if (!patient) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Paciente não encontrado ou sem permissão." });
+        }
+        const owned = new Set(
+          (await getMeasurementsByPatient(input.patientId, ctx.user.id)).map((m) => m.id)
+        );
+        if (input.series.some((s) => !owned.has(s.id))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Medição não pertence a este paciente." });
+        }
+        const fmtDate = (d: unknown) => {
+          if (!d) return undefined;
+          const dt = new Date(d as string);
+          return Number.isNaN(dt.getTime())
+            ? undefined
+            : dt.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+        };
+        const iolsList = (await getPatientIOLs(input.patientId, ctx.user.id)).map((p) => ({
+          eye: p.eye,
+          iolName: p.iolModel ?? "IOL",
+          manufacturer: p.manufacturerName ?? "",
+          surgeryDate: fmtDate(p.surgeryDate),
+          refractiveTarget: p.refractiveTarget != null ? String(p.refractiveTarget) : undefined,
+        }));
+
         const reportData: PDFReportData = {
           doctorName: ctx.user.name ?? ctx.user.email ?? "Médico",
-          caseId: input.caseId,
+          caseId: String(input.patientId),
           generatedAt: new Date().toLocaleString("pt-BR", {
             timeZone: "America/Sao_Paulo",
             day: "2-digit",
@@ -476,7 +512,7 @@ export const appRouter = router({
             hour: "2-digit",
             minute: "2-digit",
           }),
-          iols: input.iols,
+          iols: iolsList,
           series: input.series,
         };
         const pdfBuffer = await generatePDFReport(reportData);

@@ -43,7 +43,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
     return false;
   }
 
-  const from = options.from ?? "DefocusApp <noreply@defocusapp.com>";
+  // O remetente precisa ser de um domínio verificado no Resend. Antes era
+  // noreply@defocusapp.com — domínio que não é nosso, e o Resend recusava.
+  const from =
+    options.from ?? process.env.EMAIL_FROM ?? "DefocusApp <noreply@personalphaco.com>";
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
