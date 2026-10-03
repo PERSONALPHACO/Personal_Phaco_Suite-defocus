@@ -15,7 +15,10 @@ need MYSQLHOST MYSQLPORT MYSQLUSER MYSQLPASSWORD MYSQLDATABASE \
      AGE_RECIPIENT R2_ACCOUNT_ID R2_BUCKET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
 
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-NAME="defocusapp-${STAMP}.sql.gz.age"
+# Prefixo do arquivo: um serviço de backup por banco (DefocusApp, Phaco Vision…).
+PREFIX="${BACKUP_PREFIX:-defocusapp}"
+case "$PREFIX" in *[!a-z0-9-]*|"") echo "[backup] BACKUP_PREFIX inválido: $PREFIX" >&2; exit 1;; esac
+NAME="${PREFIX}-${STAMP}.sql.gz.age"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export MYSQL_PWD="$MYSQLPASSWORD"   # não aparece na lista de processos
@@ -55,7 +58,10 @@ if [ -n "${AGE_IDENTITY:-}" ]; then
   age -d -i "$TMP/id.txt" "$TMP/back.age" | gunzip | \
     mysql -h "$MYSQLHOST" -P "$MYSQLPORT" -u "$MYSQLUSER" "$RT"
   FAIL=0
-  for T in users manufacturers iols patients patient_iols measurements measurement_points password_reset_tokens __drizzle_migrations; do
+  # Todas as tabelas do banco de origem (serve para qualquer app).
+  TABLES=$(mysql -N -h "$MYSQLHOST" -P "$MYSQLPORT" -u "$MYSQLUSER" -e "SELECT table_name FROM information_schema.tables WHERE table_schema='$MYSQLDATABASE' AND table_type='BASE TABLE'")
+  [ -n "$TABLES" ] || { echo "[verify] nenhuma tabela na origem" >&2; exit 1; }
+  for T in $TABLES; do
     A=$(mysql -N -h "$MYSQLHOST" -P "$MYSQLPORT" -u "$MYSQLUSER" -e "SELECT COUNT(*) FROM \`$MYSQLDATABASE\`.\`$T\`")
     B=$(mysql -N -h "$MYSQLHOST" -P "$MYSQLPORT" -u "$MYSQLUSER" -e "SELECT COUNT(*) FROM \`$RT\`.\`$T\`")
     echo "[verify] $T: origem=$A restaurado=$B"
